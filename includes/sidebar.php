@@ -7,7 +7,7 @@
     <nav class="sidebar-nav">
         <a href="index.php" class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'index.php' ? 'active' : ''; ?>">
             <i class="fas fa-chart-line"></i>
-            <span>Panel Principal</span>
+            <span>Panel </span>
         </a>
         <a href="reportes_activos.php" class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'reportes_activos.php' ? 'active' : ''; ?>">
             <i class="fas fa-map-marker-alt"></i>
@@ -23,7 +23,7 @@
         </a>
         <a href="configuracion.php" class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'configuracion.php' ? 'active' : ''; ?>">
             <i class="fas fa-cog"></i>
-            <span>Configuración</span>
+            <span>Configuvvvvvvración</span>
         </a>
     </nav>
     
