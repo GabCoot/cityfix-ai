@@ -435,14 +435,77 @@
         }
     }
     
-    function guardarSuscripcion() {
-        const suscripcion = {
-            ruta_id: rutaActualId,
-            ruta_nombre: rutaActualObjeto?.nombre,
-            fecha: new Date().toISOString()
-        };
-        localStorage.setItem('basura_suscripcion_movil', JSON.stringify(suscripcion));
+ // Reemplazar la función guardarSuscripcion() por esta:
+
+function guardarSuscripcion() {
+    const usuarioId = localStorage.getItem('usuarioId');
+    const usuarioNombre = localStorage.getItem('usuarioNombre');
+    
+    if(!usuarioId) {
+        mostrarToast('⚠️ Debes iniciar sesión para suscribirte');
+        setTimeout(() => {
+            window.location.href = 'login.html';
+        }, 1500);
+        return false;
     }
+    
+    const suscripcion = {
+        usuario_id: usuarioId,
+        usuario_nombre: usuarioNombre,
+        ruta_id: rutaActualId,
+        ruta_nombre: rutaActualObjeto?.nombre,
+        fecha: new Date().toISOString()
+    };
+    
+    // Guardar en localStorage
+    let suscripciones = localStorage.getItem('basura_suscripciones');
+    suscripciones = suscripciones ? JSON.parse(suscripciones) : [];
+    
+    // Verificar si ya está suscrito
+    const yaSuscrito = suscripciones.some(s => s.usuario_id === usuarioId && s.ruta_id === rutaActualId);
+    
+    if(!yaSuscrito) {
+        suscripciones.push(suscripcion);
+        localStorage.setItem('basura_suscripciones', JSON.stringify(suscripciones));
+        
+        // También guardar en el servidor
+        $.post('../api/guardar_suscripcion.php', {
+            usuario_id: usuarioId,
+            ruta_id: rutaActualId,
+            ruta_nombre: rutaActualObjeto?.nombre
+        }, function(data) {
+            console.log('Suscripción guardada en servidor', data);
+        });
+        
+        mostrarToast(`✅ Suscrito a "${rutaActualObjeto.nombre}"`);
+        
+        if(Notification.permission === 'granted') {
+            new Notification('🚛 CityFix - Recolección', {
+                body: `Te suscribiste a la ruta "${rutaActualObjeto.nombre}". Recibirás alertas.`
+            });
+        }
+    } else {
+        mostrarToast(`ℹ️ Ya estás suscrito a "${rutaActualObjeto.nombre}"`);
+    }
+    
+    return true;
+}
+
+// Modificar la función suscribirseARuta()
+function suscribirseARuta() {
+    if(!rutaActualObjeto) return;
+    
+    const usuarioId = localStorage.getItem('usuarioId');
+    if(!usuarioId) {
+        mostrarToast('⚠️ Inicia sesión para suscribirte a las rutas');
+        setTimeout(() => {
+            window.location.href = 'login.html';
+        }, 1500);
+        return;
+    }
+    
+    guardarSuscripcion();
+}
     
     // ============================================
     // ESCUCHAR NOTIFICACIONES DEL ADMIN
