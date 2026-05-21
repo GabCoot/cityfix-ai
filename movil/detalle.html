@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+    <title>CityFix AI - Detalle del Reporte</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="css/app.css">
+    <style>
+        .fotos-container {
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+            padding: 10px 0;
+            scroll-snap-type: x mandatory;
+        }
+        .foto-item {
+            flex: 0 0 auto;
+            width: 150px;
+            height: 150px;
+            border-radius: 12px;
+            overflow: hidden;
+            scroll-snap-align: start;
+            background: #f1f5f9;
+        }
+        .foto-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .gallery-title {
+            font-size: 14px;
+            font-weight: 600;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="bottom-nav">
+        <a href="index.html" class="nav-item"><i class="fas fa-home"></i><span>Inicio</span></a>
+        <a href="reportar.html" class="nav-item"><i class="fas fa-plus-circle"></i><span>Reportar</span></a>
+        <a href="mis-reportes.html" class="nav-item active"><i class="fas fa-list"></i><span>Mis Reportes</span></a>
+        <a href="perfil.html" class="nav-item"><i class="fas fa-user"></i><span>Perfil</span></a>
+    </div>
+
+    <div class="main-content pb-5">
+        <div class="header-gradient p-4 text-white">
+            <div class="d-flex align-items-center">
+                <a href="mis-reportes.html" class="text-white me-3"><i class="fas fa-arrow-left fs-5"></i></a>
+                <h1 class="h4 fw-bold mb-0">Detalle del Reporte</h1>
+            </div>
+        </div>
+
+        <div class="px-3 mt-3" id="detalleContent">
+            <div class="text-center py-4">
+                <div class="spinner-border text-primary" role="status"></div>
+                <p class="mt-2 text-muted">Cargando detalles...</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        function getParameterByName(name) {
+            const url = window.location.href;
+            name = name.replace(/[\[\]]/g, '\\$&');
+            const regex = new RegExp('[?&]' + name + '(=([^&#]*)|&|#|$)');
+            const results = regex.exec(url);
+            if (!results) return null;
+            if (!results[2]) return '';
+            return decodeURIComponent(results[2].replace(/\+/g, ' '));
+        }
+
+        function cargarDetalle() {
+            const id = getParameterByName('id');
+            if(!id) {
+                $('#detalleContent').html(`<div class="alert alert-danger">No se especificó el reporte</div><a href="mis-reportes.html" class="btn btn-primary">Volver</a>`);
+                return;
+            }
+
+            $.ajax({
+                url: '../api/obtener_reporte.php',
+                type: 'GET',
+                data: { id: id },
+                dataType: 'json',
+                success: function(data) {
+                    if(data.success) {
+                        const r = data.reporte;
+                        const fotos = data.fotos || [];
+                        const estadoClass = r.estado == 'resuelto' ? 'bg-success' : (r.estado == 'en_proceso' ? 'bg-info' : 'bg-warning');
+                        const estadoText = r.estado == 'resuelto' ? '✅ Resuelto' : (r.estado == 'en_proceso' ? '🔄 En Proceso' : '⏳ Pendiente');
+                        const prioridadClass = r.prioridad == 'alta' ? 'bg-danger' : (r.prioridad == 'media' ? 'bg-warning' : 'bg-success');
+                        
+                        // Mostrar fotos
+                        let fotosHtml = '';
+                        if(fotos.length > 0) {
+                            fotosHtml = `
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold"><i class="fas fa-images me-2"></i>Fotos del problema</label>
+                                    <div class="fotos-container">
+                                        ${fotos.map(foto => `<div class="foto-item" onclick="verFoto('${foto.foto_url}')"><img src="../${foto.foto_url}" alt="Foto"></div>`).join('')}
+                                    </div>
+                                </div>
+                            `;
+                        }
+                        
+                        // Mapa
+                        let mapHtml = '';
+                        if(r.latitud && r.longitud && r.latitud != 0) {
+                            mapHtml = `
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">📍 Ubicación del problema</label>
+                                    <div id="detailMap" style="height: 200px; border-radius: 12px;"></div>
+                                    <small class="text-muted d-block mt-1">Lat: ${r.latitud}, Lng: ${r.longitud}</small>
+                                </div>
+                                <script>
+                                    setTimeout(() => {
+                                        const map = L.map('detailMap').setView([${r.latitud}, ${r.longitud}], 16);
+                                        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
+                                        L.marker([${r.latitud}, ${r.longitud}]).addTo(map).bindPopup('${r.titulo.replace(/'/g, "\\'")}');
+                                    }, 100);
+                                <\/script>
+                            `;
+                        }
+                        
+                        const html = `
+                            <div class="card-mobile">
+                                <div class="status-header ${r.estado} p-3 rounded-top text-white text-center">
+                                    <i class="fas ${r.estado == 'resuelto' ? 'fa-check-circle' : (r.estado == 'en_proceso' ? 'fa-sync-alt' : 'fa-clock')} fs-1"></i>
+                                    <h5 class="mt-2 mb-0">${estadoText}</h5>
+                                </div>
+                                <div class="p-3">
+                                    <h5 class="fw-bold mb-2">${escapeHtml(r.titulo)}</h5>
+                                    <p class="text-muted mb-3">${escapeHtml(r.descripcion)}</p>
+                                    
+                                    ${fotosHtml}
+                                    
+                                    <hr>
+                                    
+                                    <div class="row">
+                                        <div class="col-6 mb-2">
+                                            <small class="text-muted d-block">Categoría</small>
+                                            <strong>${r.categoria.replace('_', ' ')}</strong>
+                                        </div>
+                                        <div class="col-6 mb-2">
+                                            <small class="text-muted d-block">Prioridad</small>
+                                            <span class="badge ${prioridadClass}">${r.prioridad.toUpperCase()}</span>
+                                        </div>
+                                        <div class="col-6 mb-2">
+                                            <small class="text-muted d-block">Reportado por</small>
+                                            <strong>${escapeHtml(r.ciudadano_nombre)}</strong>
+                                        </div>
+                                        <div class="col-6 mb-2">
+                                            <small class="text-muted d-block">Fecha</small>
+                                            <strong>${new Date(r.fecha_reporte).toLocaleString()}</strong>
+                                        </div>
+                                        ${r.fecha_resuelto ? `
+                                        <div class="col-12 mt-2">
+                                            <small class="text-muted d-block">Fecha de resolución</small>
+                                            <strong class="text-success">${new Date(r.fecha_resuelto).toLocaleString()}</strong>
+                                        </div>
+                                        ` : ''}
+                                    </div>
+                                    
+                                    ${mapHtml}
+                                </div>
+                            </div>
+                        `;
+                        $('#detalleContent').html(html);
+                    } else {
+                        $('#detalleContent').html(`<div class="alert alert-danger">Error al cargar el reporte</div><a href="mis-reportes.html" class="btn btn-primary">Volver</a>`);
+                    }
+                },
+                error: function() {
+                    $('#detalleContent').html(`<div class="alert alert-danger">Error de conexión</div><a href="mis-reportes.html" class="btn btn-primary">Volver</a>`);
+                }
+            });
+        }
+
+        function verFoto(url) {
+            window.open('../' + url, '_blank');
+        }
+
+        function escapeHtml(text) {
+            if(!text) return '';
+            return $('<div>').text(text).html();
+        }
+
+        $(document).ready(cargarDetalle);
+    </script>
+</body>
+</html>

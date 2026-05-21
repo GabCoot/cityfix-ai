@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+    <title>CityFix AI - Nuevo Reporte</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="css/app.css">
+    <style>
+        /* Estilos adicionales para el mapa y fotos */
+        #map { height: 200px; border-radius: 16px; margin-top: 8px; }
+        .location-info { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; padding: 8px 12px; background: #f8fafc; border-radius: 12px; font-size: 12px; }
+        .photo-preview-container { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+        .photo-preview-item { position: relative; width: 75px; height: 75px; border-radius: 12px; overflow: hidden; background: #f1f5f9; border: 1px solid #e2e8f0; }
+        .photo-preview-item img { width: 100%; height: 100%; object-fit: cover; }
+        .remove-photo-btn { position: absolute; top: 2px; right: 2px; background: rgba(0,0,0,0.6); color: white; border: none; border-radius: 50%; width: 18px; height: 18px; font-size: 10px; cursor: pointer; }
+        .btn-camera { background: #f1f5f9; border: 1px solid #e2e8f0; padding: 10px; border-radius: 12px; width: 100%; font-weight: 500; margin-top: 8px; }
+        .camera-options { display: flex; gap: 10px; }
+        .btn-send { width: 100%; padding: 14px; background: linear-gradient(135deg, #10b981, #059669); color: white; border: none; border-radius: 40px; font-weight: 600; margin-top: 16px; margin-bottom: 30px; }
+        
+        /* IA Card - Integrada con tu diseño */
+        .ia-card {
+            background: #eef2ff;
+            border-radius: 20px;
+            padding: 16px;
+            margin-bottom: 16px;
+            border-left: 4px solid #3b82f6;
+        }
+        .ia-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+        .ia-header i { color: #3b82f6; font-size: 18px; }
+        .ia-header span { font-size: 13px; font-weight: 600; color: #1e293b; }
+        .ia-badge { background: #3b82f6; color: white; border-radius: 20px; padding: 2px 10px; font-size: 10px; }
+        .ia-result { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
+        .ia-tag { background: white; border-radius: 30px; padding: 5px 12px; font-size: 12px; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .ia-confidence { font-size: 11px; color: #64748b; margin-top: 10px; }
+        
+        .priority-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 8px; }
+        .priority-item { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px 5px; text-align: center; cursor: pointer; transition: all 0.2s; }
+        .priority-item i { font-size: 18px; margin-bottom: 4px; display: block; }
+        .priority-item span { font-size: 12px; font-weight: 600; }
+        .priority-item small { font-size: 9px; display: block; color: #64748b; }
+        .priority-item.selected { background: #3b82f6; border-color: #3b82f6; color: white; }
+        .priority-item.selected small { color: rgba(255,255,255,0.8); }
+        .priority-item[data-prioridad="alta"].selected { background: #ef4444; border-color: #ef4444; }
+        .priority-item[data-prioridad="baja"].selected { background: #10b981; border-color: #10b981; }
+        
+        .categories-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+        .category-item { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px 5px; text-align: center; cursor: pointer; transition: all 0.2s; }
+        .category-item i { font-size: 22px; margin-bottom: 5px; display: block; }
+        .category-item span { font-size: 12px; font-weight: 500; }
+        .category-item.selected { background: #3b82f6; border-color: #3b82f6; color: white; }
+    </style>
+</head>
+<body>
+
+<div class="bottom-nav">
+    <a href="index.html" class="nav-item"><i class="fas fa-home"></i><span>Inicio</span></a>
+    <a href="reportar.html" class="nav-item active"><i class="fas fa-plus-circle"></i><span>Reportar</span></a>
+    <a href="mis-reportes.html" class="nav-item"><i class="fas fa-list"></i><span>Mis Reportes</span></a>
+    <a href="perfil.html" class="nav-item"><i class="fas fa-user"></i><span>Perfil</span></a>
+</div>
+
+<div class="main-content pb-5">
+    <div class="header-gradient p-4 text-white">
+        <div class="d-flex align-items-center">
+            <a href="index.html" class="text-white me-3"><i class="fas fa-arrow-left fs-5"></i></a>
+            <div>
+                <h1 class="h4 fw-bold mb-0">Nuevo Reporte</h1>
+                <p class="small opacity-75 mb-0">Describe el problema y la IA lo clasificará</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="px-3 mt-3">
+        <!-- Tarjeta de IA - Detección automática -->
+        <div class="ia-card" id="iaCard">
+            <div class="ia-header">
+                <i class="fas fa-robot"></i>
+                <span>Detección inteligente</span>
+                <span class="ia-badge">IA activa</span>
+            </div>
+            <div id="iaResultado">
+                <div class="ia-result">
+                    <div class="ia-tag">
+                        <i class="fas fa-tag"></i>
+                        <span id="iaCategoriaText">---</span>
+                    </div>
+                    <div class="ia-tag">
+                        <i class="fas fa-flag"></i>
+                        <span id="iaPrioridadText">---</span>
+                    </div>
+                </div>
+                <div class="ia-confidence" id="iaConfianzaText">
+                    ✏️ Escribe la descripción para analizar...
+                </div>
+            </div>
+        </div>
+
+        <!-- Datos personales -->
+        <div class="card-mobile mb-3">
+            <div class="card-title">
+                <i class="fas fa-user"></i>
+                <span>Tus datos</span>
+            </div>
+            <div class="mb-2">
+                <input type="text" id="nombre" class="form-control-mobile" placeholder="Tu nombre *" required>
+            </div>
+            <div class="mb-2">
+                <input type="email" id="email" class="form-control-mobile" placeholder="Email (opcional)">
+            </div>
+            <div>
+                <input type="tel" id="telefono" class="form-control-mobile" placeholder="Teléfono (opcional)">
+            </div>
+        </div>
+
+        <!-- Descripción del problema -->
+        <div class="card-mobile mb-3">
+            <div class="card-title">
+                <i class="fas fa-pen"></i>
+                <span>Describe el problema</span>
+            </div>
+            <div class="mb-2">
+                <input type="text" id="titulo" class="form-control-mobile" placeholder="Título *" required>
+            </div>
+            <div>
+                <textarea id="descripcion" class="form-control-mobile" rows="4" placeholder="Describe detalladamente el problema..." required></textarea>
+            </div>
+        </div>
+
+        <!-- Categoría -->
+        <div class="card-mobile mb-3">
+            <div class="card-title">
+                <i class="fas fa-tags"></i>
+                <span>Categoría</span>
+            </div>
+            <div class="categories-grid" id="categoriesGrid">
+                <div class="category-item" data-cat="bache" onclick="selectCategoria(this, 'bache')">
+                    <i class="fas fa-road"></i><span>Bache</span>
+                </div>
+                <div class="category-item" data-cat="fuga_agua" onclick="selectCategoria(this, 'fuga_agua')">
+                    <i class="fas fa-water"></i><span>Fuga</span>
+                </div>
+                <div class="category-item" data-cat="basura" onclick="selectCategoria(this, 'basura')">
+                    <i class="fas fa-trash"></i><span>Basura</span>
+                </div>
+                <div class="category-item" data-cat="luminaria" onclick="selectCategoria(this, 'luminaria')">
+                    <i class="fas fa-lightbulb"></i><span>Luz</span>
+                </div>
+                <div class="category-item" data-cat="otros" onclick="selectCategoria(this, 'otros')">
+                    <i class="fas fa-ellipsis-h"></i><span>Otro</span>
+                </div>
+            </div>
+            <input type="hidden" id="categoria" required>
+        </div>
+
+        <!-- Prioridad -->
+        <div class="card-mobile mb-3">
+            <div class="card-title">
+                <i class="fas fa-flag"></i>
+                <span>Prioridad</span>
+            </div>
+            <div class="priority-grid" id="priorityGrid">
+                <div class="priority-item" data-prioridad="baja" onclick="selectPrioridad(this, 'baja')">
+                    <i class="fas fa-arrow-down"></i>
+                    <span>Baja</span>
+                    <small>Problema menor</small>
+                </div>
+                <div class="priority-item" data-prioridad="media" onclick="selectPrioridad(this, 'media')">
+                    <i class="fas fa-minus"></i>
+                    <span>Media</span>
+                    <small>Requiere atención</small>
+                </div>
+                <div class="priority-item" data-prioridad="alta" onclick="selectPrioridad(this, 'alta')">
+                    <i class="fas fa-arrow-up"></i>
+                    <span>Alta</span>
+                    <small>Urgente</small>
+                </div>
+            </div>
+            <input type="hidden" id="prioridad" value="media">
+        </div>
+
+        <!-- Fotos -->
+        <div class="card-mobile mb-3">
+            <div class="card-title">
+                <i class="fas fa-camera"></i>
+                <span>Fotos del problema</span>
+            </div>
+            <div class="camera-options">
+                <button type="button" class="btn-camera" onclick="tomarFoto()">
+                    <i class="fas fa-camera"></i> Tomar foto
+                </button>
+                <button type="button" class="btn-camera" onclick="seleccionarFoto()">
+                    <i class="fas fa-images"></i> Galería
+                </button>
+            </div>
+            <div class="photo-preview-container" id="photoPreview"></div>
+            <small class="text-muted">📸 Hasta 5 fotos</small>
+        </div>
+
+        <!-- Ubicación -->
+        <div class="card-mobile mb-3">
+            <div class="card-title">
+                <i class="fas fa-map-marker-alt"></i>
+                <span>Ubicación</span>
+            </div>
+            <div id="map"></div>
+            <div class="location-info">
+                <i class="fas fa-location-dot text-primary"></i>
+                <span id="direccion" class="small">Obteniendo ubicación...</span>
+                <button type="button" class="btn btn-sm btn-link text-primary" onclick="obtenerUbicacion()">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </div>
+            <input type="hidden" id="latitud">
+            <input type="hidden" id="longitud">
+        </div>
+
+        <!-- Botón enviar -->
+        <button type="button" class="btn-send" onclick="enviarReporte()">
+            <i class="fas fa-paper-plane me-2"></i> Enviar Reporte
+        </button>
+    </div>
+</div>
+
+<!-- Loading Overlay -->
+<div class="loading-overlay" id="loadingOverlay">
+    <div class="spinner-border text-light" style="width: 3rem; height: 3rem;"></div>
+    <p class="mt-3 text-white">Enviando reporte...</p>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+    let map, marker;
+    let fotos = [];
+    let timeoutIA = null;
+    
+    // ============================================
+    // IA LOCAL - Detección automática
+    // ============================================
+    
+    function analizarTextoConIA(texto, titulo = '') {
+        const textoCompleto = (titulo + ' ' + texto).toLowerCase();
+        
+        const categorias = {
+            'bache': ['bache', 'hoyo', 'cráter', 'bacheo', 'asfalto roto', 'calle rota', 'pavimento', 'hundimiento'],
+            'fuga_agua': ['fuga', 'agua', 'tubería', 'inundación', 'chorro', 'escape', 'humedad', 'filtración'],
+            'basura': ['basura', 'residuos', 'desperdicios', 'tiradero', 'desechos', 'suciedad', 'acumulación'],
+            'luminaria': ['luz', 'farol', 'lámpara', 'alumbrado', 'luminaria', 'foco', 'oscuridad', 'apagado'],
+            'otros': []
+        };
+        
+        const prioridadAlta = ['urgente', 'peligro', 'accidente', 'grave', 'emergencia', 'inmediato', 'riesgo', 'peligroso', 'lesión'];
+        const prioridadBaja = ['pequeño', 'leve', 'menor', 'estético', 'cosmético', 'detalle'];
+        
+        let categoriaDetectada = 'otros';
+        let maxPuntaje = 0;
+        
+        for (const [categoria, palabras] of Object.entries(categorias)) {
+            if (categoria === 'otros') continue;
+            let puntaje = 0;
+            for (const palabra of palabras) {
+                if (textoCompleto.includes(palabra)) puntaje += 10;
+            }
+            if (puntaje > maxPuntaje && puntaje > 0) {
+                maxPuntaje = puntaje;
+                categoriaDetectada = categoria;
+            }
+        }
+        
+        let prioridadDetectada = 'media';
+        let puntajeAlta = 0, puntajeBaja = 0;
+        
+        for (const palabra of prioridadAlta) if (textoCompleto.includes(palabra)) puntajeAlta += 10;
+        for (const palabra of prioridadBaja) if (textoCompleto.includes(palabra)) puntajeBaja += 5;
+        
+        if (puntajeAlta > 5) prioridadDetectada = 'alta';
+        else if (puntajeBaja > 5 && puntajeBaja > puntajeAlta) prioridadDetectada = 'baja';
+        
+        let confianza = Math.min(95, Math.max(40, maxPuntaje + (puntajeAlta * 2)));
+        if (textoCompleto.length < 30) confianza = Math.min(confianza, 60);
+        if (maxPuntaje === 0 && puntajeAlta === 0) confianza = 30;
+        
+        return { categoria: categoriaDetectada, prioridad: prioridadDetectada, confianza: confianza };
+    }
+    
+    function actualizarIADeteccion() {
+        const titulo = document.getElementById('titulo').value;
+        const descripcion = document.getElementById('descripcion').value;
+        
+        if ((titulo + descripcion).length < 15) {
+            document.getElementById('iaCategoriaText').innerHTML = '---';
+            document.getElementById('iaPrioridadText').innerHTML = '---';
+            document.getElementById('iaConfianzaText').innerHTML = '✏️ Escribe más detalles para analizar...';
+            return;
+        }
+        
+        const resultado = analizarTextoConIA(descripcion, titulo);
+        
+        const categoriaNombre = {
+            'bache': '🚧 Bache', 'fuga_agua': '💧 Fuga', 'basura': '🗑️ Basura',
+            'luminaria': '💡 Luminaria', 'otros': '📌 Otros'
+        }[resultado.categoria] || resultado.categoria;
+        
+        const prioridadEmoji = resultado.prioridad == 'alta' ? '🔴' : (resultado.prioridad == 'media' ? '🟡' : '🟢');
+        
+        document.getElementById('iaCategoriaText').innerHTML = categoriaNombre;
+        document.getElementById('iaPrioridadText').innerHTML = `${prioridadEmoji} ${resultado.prioridad.toUpperCase()}`;
+        
+        let confianzaTexto = '';
+        if (resultado.confianza >= 70) {
+            confianzaTexto = `✅ Confianza alta (${resultado.confianza}%) - Aplicado automáticamente`;
+        } else if (resultado.confianza >= 50) {
+            confianzaTexto = `👍 Confianza media (${resultado.confianza}%) - Puedes ajustar`;
+        } else {
+            confianzaTexto = `🤔 Confianza baja (${resultado.confianza}%) - Selecciona manualmente`;
+        }
+        document.getElementById('iaConfianzaText').innerHTML = confianzaTexto;
+        
+        if (resultado.confianza >= 70) {
+            aplicarCategoriaSugerida(resultado.categoria);
+            aplicarPrioridadSugerida(resultado.prioridad);
+        }
+    }
+    
+    function aplicarCategoriaSugerida(categoria) {
+        const elemento = document.querySelector(`.category-item[data-cat="${categoria}"]`);
+        if (elemento && !elemento.classList.contains('selected')) {
+            document.querySelectorAll('.category-item').forEach(item => item.classList.remove('selected'));
+            elemento.classList.add('selected');
+            document.getElementById('categoria').value = categoria;
+        }
+    }
+    
+    function aplicarPrioridadSugerida(prioridad) {
+        const elemento = document.querySelector(`.priority-item[data-prioridad="${prioridad}"]`);
+        if (elemento && !elemento.classList.contains('selected')) {
+            document.querySelectorAll('.priority-item').forEach(item => item.classList.remove('selected'));
+            elemento.classList.add('selected');
+            document.getElementById('prioridad').value = prioridad;
+        }
+    }
+    
+    function manejarCambioTexto() {
+        if (timeoutIA) clearTimeout(timeoutIA);
+        timeoutIA = setTimeout(actualizarIADeteccion, 500);
+    }
+    
+    // ============================================
+    // MAPA
+    // ============================================
+    
+    function initMap() {
+        map = L.map('map').setView([19.4326, -99.1332], 14);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
+        map.on('click', function(e) {
+            if(marker) map.removeLayer(marker);
+            marker = L.marker([e.latlng.lat, e.latlng.lng]).addTo(map);
+            document.getElementById('latitud').value = e.latlng.lat;
+            document.getElementById('longitud').value = e.latlng.lng;
+            document.getElementById('direccion').innerHTML = `${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`;
+        });
+    }
+    
+    function obtenerUbicacion() {
+        if(navigator.geolocation) {
+            mostrarToast('📍 Obteniendo ubicación...');
+            navigator.geolocation.getCurrentPosition(
+                function(pos) {
+                    map.setView([pos.coords.latitude, pos.coords.longitude], 17);
+                    if(marker) map.removeLayer(marker);
+                    marker = L.marker([pos.coords.latitude, pos.coords.longitude]).addTo(map);
+                    document.getElementById('latitud').value = pos.coords.latitude;
+                    document.getElementById('longitud').value = pos.coords.longitude;
+                    document.getElementById('direccion').innerHTML = `${pos.coords.latitude.toFixed(6)}, ${pos.coords.longitude.toFixed(6)}`;
+                    mostrarToast('✅ Ubicación obtenida', 'success');
+                },
+                function() { mostrarToast('❌ No se pudo obtener ubicación', 'error'); }
+            );
+        }
+    }
+    
+    // ============================================
+    // FOTOS
+    // ============================================
+    
+    function tomarFoto() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.capture = 'environment';
+        input.onchange = (e) => procesarFotos(Array.from(e.target.files));
+        input.click();
+    }
+    
+    function seleccionarFoto() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.multiple = true;
+        input.onchange = (e) => procesarFotos(Array.from(e.target.files));
+        input.click();
+    }
+    
+    function procesarFotos(files) {
+        if(fotos.length + files.length > 5) {
+            mostrarToast('❌ Máximo 5 fotos', 'error');
+            return;
+        }
+        files.forEach(file => {
+            if(file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    fotos.push({ file: file, preview: e.target.result });
+                    mostrarFotos();
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+    }
+    
+    function mostrarFotos() {
+        const container = document.getElementById('photoPreview');
+        container.innerHTML = '';
+        fotos.forEach((foto, i) => {
+            const div = document.createElement('div');
+            div.className = 'photo-preview-item';
+            div.innerHTML = `<img src="${foto.preview}"><button class="remove-photo-btn" onclick="eliminarFoto(${i})">✕</button>`;
+            container.appendChild(div);
+        });
+    }
+    
+    function eliminarFoto(index) {
+        fotos.splice(index, 1);
+        mostrarFotos();
+    }
+    
+    // ============================================
+    // SELECCIÓN MANUAL
+    // ============================================
+    
+    function selectCategoria(el, cat) {
+        document.querySelectorAll('.category-item').forEach(item => item.classList.remove('selected'));
+        el.classList.add('selected');
+        document.getElementById('categoria').value = cat;
+    }
+    
+    function selectPrioridad(el, prioridad) {
+        document.querySelectorAll('.priority-item').forEach(item => item.classList.remove('selected'));
+        el.classList.add('selected');
+        document.getElementById('prioridad').value = prioridad;
+    }
+    
+    // ============================================
+    // ENVIAR REPORTE
+    // ============================================
+    
+    function enviarReporte() {
+        const nombre = document.getElementById('nombre').value.trim();
+        const titulo = document.getElementById('titulo').value.trim();
+        const descripcion = document.getElementById('descripcion').value.trim();
+        const categoria = document.getElementById('categoria').value;
+        const prioridad = document.getElementById('prioridad').value;
+        const latitud = document.getElementById('latitud').value;
+        const longitud = document.getElementById('longitud').value;
+        
+        if(!nombre) { mostrarToast('❌ Ingresa tu nombre', 'error'); return; }
+        if(!titulo) { mostrarToast('❌ Ingresa un título', 'error'); return; }
+        if(!descripcion) { mostrarToast('❌ Describe el problema', 'error'); return; }
+        if(!categoria) { mostrarToast('❌ Selecciona una categoría', 'error'); return; }
+        if(!latitud || !longitud) { mostrarToast('📍 Selecciona la ubicación', 'error'); return; }
+        
+        document.getElementById('loadingOverlay').classList.add('active');
+        
+        const formData = new FormData();
+        formData.append('nombre', nombre);
+        formData.append('email', document.getElementById('email').value);
+        formData.append('telefono', document.getElementById('telefono').value);
+        formData.append('titulo', titulo);
+        formData.append('descripcion', descripcion);
+        formData.append('categoria', categoria);
+        formData.append('prioridad', prioridad);
+        formData.append('latitud', latitud);
+        formData.append('longitud', longitud);
+        formData.append('usuario_id', localStorage.getItem('usuarioId') || 'guest');
+        
+        fotos.forEach((foto, i) => formData.append(`fotos[${i}]`, foto.file));
+        
+        fetch('../api/guardar_reporte_movil.php', { method: 'POST', body: formData })
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('loadingOverlay').classList.remove('active');
+                if(data.success) {
+                    mostrarToast('✅ ¡Reporte enviado!', 'success');
+                    setTimeout(() => window.location.href = 'mis-reportes.html', 1500);
+                } else {
+                    mostrarToast('❌ Error: ' + (data.error || 'Desconocido'), 'error');
+                }
+            })
+            .catch(() => {
+                document.getElementById('loadingOverlay').classList.remove('active');
+                mostrarToast('❌ Error de conexión', 'error');
+            });
+    }
+    
+    function mostrarToast(msg, tipo) {
+        const toast = document.createElement('div');
+        toast.className = 'toast-message';
+        toast.style.cssText = 'position:fixed;bottom:100px;left:50%;transform:translateX(-50%);background:' + 
+            (tipo === 'error' ? '#ef4444' : (tipo === 'success' ? '#10b981' : '#1e293b')) + 
+            ';color:white;padding:10px 20px;border-radius:40px;font-size:13px;z-index:9999';
+        toast.innerHTML = msg;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+    }
+    
+    // ============================================
+    // INICIALIZACIÓN
+    // ============================================
+    
+    $(document).ready(function() {
+        initMap();
+        setTimeout(obtenerUbicacion, 500);
+        
+        document.getElementById('titulo').addEventListener('input', manejarCambioTexto);
+        document.getElementById('descripcion').addEventListener('input', manejarCambioTexto);
+        
+        if(!localStorage.getItem('usuarioId')) localStorage.setItem('usuarioId', 'user_' + Date.now());
+    });
+</script>
+</body>
+</html>
