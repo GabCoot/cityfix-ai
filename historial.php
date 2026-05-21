@@ -173,14 +173,14 @@ function cargarHistorial() {
                         <tr><td colspan="9" class="text-center py-4 text-muted">
                             <i class="fas fa-inbox fa-3x mb-3 d-block"></i>
                             No hay reportes resueltos en el historial
-                          </td></tr>
+                        </td></tr>
                     `);
                 }
             } else {
                 $('#tablaHistorial').html(`
                     <tr><td colspan="9" class="text-center text-danger">
                         ❌ Error: ${data.error || 'No se pudieron cargar los datos'}
-                      </td></tr>
+                    </td></tr>
                 `);
             }
         },
@@ -191,7 +191,7 @@ function cargarHistorial() {
                 <tr><td colspan="9" class="text-center text-danger">
                     ❌ Error de conexión: ${error}<br>
                     <small>Revisa la consola para más detalles</small>
-                  </td></tr>
+                </td></tr>
             `);
         }
     });
@@ -211,24 +211,31 @@ function verDetalleCompleto(id) {
             // Estado y prioridad
             const prioridadClass = r.prioridad == 'alta' ? 'danger' : (r.prioridad == 'media' ? 'warning' : 'success');
             
-            // Generar HTML de fotos
+            // Generar HTML de fotos - RUTA CORREGIDA
             let fotosHtml = '';
             if(fotos.length > 0) {
                 fotosHtml = `
                     <div class="mb-4">
                         <h6><i class="fas fa-images text-primary"></i> Fotos del problema (${fotos.length})</h6>
                         <div class="row g-2" id="galeriaFotos">
-                            ${fotos.map((foto, index) => `
-                                <div class="col-md-3 col-4">
-                                    <div class="card h-100">
-                                        <img src="../${foto.foto_url}" class="card-img-top" style="height: 150px; object-fit: cover; cursor: pointer;" 
-                                             onclick="verImagenGrande('../${foto.foto_url}')" alt="Foto">
-                                        <div class="card-footer text-center p-1">
-                                            <small class="text-muted">Foto ${index + 1}</small>
+                            ${fotos.map((foto, index) => {
+                                // CORREGIDO: Usar la ruta directamente de la base de datos
+                                // La ruta ya incluye 'img/reportes/'
+                                const rutaImagen = '../' + foto.foto_url;
+                                return `
+                                    <div class="col-md-3 col-4">
+                                        <div class="card h-100">
+                                            <img src="${rutaImagen}" class="card-img-top" style="height: 150px; object-fit: cover; cursor: pointer;" 
+                                                 onclick="verImagenGrande('${rutaImagen}')" 
+                                                 onerror="this.onerror=null; this.src='../img/reportes/placeholder.jpg';"
+                                                 alt="Foto del reporte">
+                                            <div class="card-footer text-center p-1">
+                                                <small class="text-muted">Foto ${index + 1}</small>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            `).join('')}
+                                `;
+                            }).join('')}
                         </div>
                     </div>
                 `;
@@ -236,7 +243,10 @@ function verDetalleCompleto(id) {
                 fotosHtml = `
                     <div class="mb-4">
                         <h6><i class="fas fa-camera text-muted"></i> Fotos</h6>
-                        <p class="text-muted">No se subieron fotos para este reporte</p>
+                        <div class="alert alert-secondary text-center">
+                            <i class="fas fa-image fa-2x mb-2 d-block"></i>
+                            <p class="mb-0">No se subieron fotos para este reporte</p>
+                        </div>
                     </div>
                 `;
             }
@@ -248,7 +258,7 @@ function verDetalleCompleto(id) {
                     <div class="mb-4">
                         <h6><i class="fas fa-map-marker-alt text-danger"></i> Ubicación exacta</h6>
                         <div id="miniMapa" style="height: 250px; border-radius: 12px; margin-bottom: 10px;"></div>
-                        <div class="row">
+                        <div class="row mt-2">
                             <div class="col-md-6">
                                 <small class="text-muted">Coordenadas:</small><br>
                                 <strong>Latitud:</strong> ${r.latitud}<br>
@@ -269,26 +279,33 @@ function verDetalleCompleto(id) {
                 // Inicializar mini mapa después de cargar
                 setTimeout(() => {
                     if(document.getElementById('miniMapa')) {
-                        const miniMap = L.map('miniMapa').setView([r.latitud, r.longitud], 15);
-                        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-                            attribution: '© CityFix AI'
-                        }).addTo(miniMap);
-                        L.marker([r.latitud, r.longitud]).addTo(miniMap)
-                            .bindPopup(`<b>${escapeHtml(r.titulo)}</b><br>${escapeHtml(r.descripcion.substring(0, 100))}`);
+                        try {
+                            const miniMap = L.map('miniMapa').setView([parseFloat(r.latitud), parseFloat(r.longitud)], 15);
+                            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                                attribution: '© CityFix AI'
+                            }).addTo(miniMap);
+                            L.marker([parseFloat(r.latitud), parseFloat(r.longitud)]).addTo(miniMap)
+                                .bindPopup(`<b>${escapeHtml(r.titulo)}</b><br>${escapeHtml(r.descripcion.substring(0, 100))}`);
+                        } catch(e) {
+                            console.error('Error al cargar el mapa:', e);
+                        }
                     }
                 }, 500);
             } else {
                 ubicacionHtml = `
                     <div class="mb-4">
                         <h6><i class="fas fa-map-marker-alt text-muted"></i> Ubicación</h6>
-                        <p class="text-muted">No se especificó ubicación para este reporte</p>
+                        <div class="alert alert-secondary text-center">
+                            <i class="fas fa-map fa-2x mb-2 d-block"></i>
+                            <p class="mb-0">No se especificó ubicación para este reporte</p>
+                        </div>
                     </div>
                 `;
             }
             
             const html = `
                 <div class="row">
-                    <div class="col-md-8">
+                    <div class="col-md-7">
                         <div class="card mb-3">
                             <div class="card-header bg-light">
                                 <h5 class="mb-0">📋 Información del Reporte #${r.id}</h5>
@@ -310,6 +327,7 @@ function verDetalleCompleto(id) {
                                         <small class="text-muted d-block">👤 Reportado por</small>
                                         <strong>${escapeHtml(r.ciudadano_nombre)}</strong>
                                         ${r.ciudadano_email ? `<br><small>${escapeHtml(r.ciudadano_email)}</small>` : ''}
+                                        ${r.telefono ? `<br><small>📞 ${escapeHtml(r.telefono)}</small>` : ''}
                                     </div>
                                     <div class="col-md-6 mt-2">
                                         <small class="text-muted d-block">📂 Categoría</small>
@@ -327,7 +345,7 @@ function verDetalleCompleto(id) {
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-5">
                         ${ubicacionHtml}
                     </div>
                 </div>
@@ -336,7 +354,7 @@ function verDetalleCompleto(id) {
             
             $('#detalleContent').html(html);
         } else {
-            $('#detalleContent').html('<div class="alert alert-danger">❌ Error al cargar los detalles</div>');
+            $('#detalleContent').html('<div class="alert alert-danger">❌ Error al cargar los detalles: ' + (data.error || 'Error desconocido') + '</div>');
         }
     }, 'json');
 }
@@ -354,13 +372,17 @@ function verMapa(id) {
             
             setTimeout(() => {
                 if(document.getElementById('mapaCompleto')) {
-                    const fullMap = L.map('mapaCompleto').setView([r.latitud, r.longitud], 16);
-                    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-                        attribution: '© CityFix AI'
-                    }).addTo(fullMap);
-                    L.marker([r.latitud, r.longitud]).addTo(fullMap)
-                        .bindPopup(`<b>${escapeHtml(r.titulo)}</b><br>${escapeHtml(r.descripcion.substring(0, 100))}`)
-                        .openPopup();
+                    try {
+                        const fullMap = L.map('mapaCompleto').setView([parseFloat(r.latitud), parseFloat(r.longitud)], 16);
+                        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                            attribution: '© CityFix AI'
+                        }).addTo(fullMap);
+                        L.marker([parseFloat(r.latitud), parseFloat(r.longitud)]).addTo(fullMap)
+                            .bindPopup(`<b>${escapeHtml(r.titulo)}</b><br>${escapeHtml(r.descripcion.substring(0, 100))}`)
+                            .openPopup();
+                    } catch(e) {
+                        console.error('Error al cargar el mapa:', e);
+                    }
                 }
             }, 300);
         }
@@ -372,12 +394,14 @@ function verImagenGrande(url) {
     const win = window.open();
     win.document.write(`
         <html>
-        <head><title>Imagen del Reporte</title>
-        <style>
-            body { margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #000; }
-            img { max-width: 100%; max-height: 100vh; }
-            button { position: fixed; top: 20px; right: 20px; padding: 10px 20px; background: white; border: none; border-radius: 8px; cursor: pointer; }
-        </style>
+        <head>
+            <title>Imagen del Reporte</title>
+            <style>
+                body { margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #000; }
+                img { max-width: 100%; max-height: 100vh; object-fit: contain; }
+                button { position: fixed; top: 20px; right: 20px; padding: 10px 20px; background: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; }
+                button:hover { background: #f0f0f0; }
+            </style>
         </head>
         <body>
             <img src="${url}" alt="Imagen del reporte">
@@ -397,5 +421,53 @@ $(document).ready(function() {
     cargarHistorial();
 });
 </script>
+
+<style>
+.badge-alta {
+    background-color: #dc3545;
+    color: white;
+    padding: 5px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+}
+.badge-media {
+    background-color: #ffc107;
+    color: #000;
+    padding: 5px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+}
+.badge-baja {
+    background-color: #28a745;
+    color: white;
+    padding: 5px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+}
+.badge-success {
+    background-color: #198754;
+    color: white;
+    padding: 5px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+}
+.stat-card {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    padding: 20px;
+    transition: all 0.3s ease;
+}
+.table th {
+    font-weight: 600;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.table td {
+    vertical-align: middle;
+    font-size: 14px;
+}
+</style>
 
 <?php include 'includes/footer.php'; ?>

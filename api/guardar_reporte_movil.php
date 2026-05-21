@@ -3,8 +3,8 @@ header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 require_once '../config/conexion.php';
 
-// Crear carpeta de fotos dentro del proyecto hackatec
-$uploadDir = __DIR__ . '/../uploads/';
+// Crear carpeta de fotos dentro de la carpeta publica img
+$uploadDir = __DIR__ . '/../img/reportes/';  // Cambiado a img/reportes
 if (!file_exists($uploadDir)) {
     mkdir($uploadDir, 0777, true);
 }
@@ -46,11 +46,13 @@ try {
         for($i = 0; $i < count($files['name']); $i++) {
             if($files['error'][$i] === UPLOAD_ERR_OK) {
                 $extension = strtolower(pathinfo($files['name'][$i], PATHINFO_EXTENSION));
-                $nombreArchivo = $reporteId . '_' . time() . '_' . $i . '.' . $extension;
+                // Generar nombre único para la imagen
+                $nombreArchivo = 'reporte_' . $reporteId . '_' . time() . '_' . $i . '.' . $extension;
                 $rutaArchivo = $uploadDir . $nombreArchivo;
                 
                 if(move_uploaded_file($files['tmp_name'][$i], $rutaArchivo)) {
-                    $rutaRelativa = 'uploads/' . $nombreArchivo;
+                    // Guardar ruta relativa desde la raíz del proyecto
+                    $rutaRelativa = 'img/reportes/' . $nombreArchivo;
                     $stmtFoto = $pdo->prepare("INSERT INTO reporte_fotos (reporte_id, foto_url, fecha_subida) VALUES (?, ?, NOW())");
                     $stmtFoto->execute([$reporteId, $rutaRelativa]);
                     $fotosSubidas++;

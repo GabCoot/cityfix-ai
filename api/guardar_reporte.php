@@ -3,23 +3,66 @@ header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 require_once '../config/conexion.php';
 
-$nombre = isset($_POST['nombre']) ? $_POST['nombre'] : '';
-$email = isset($_POST['email']) ? $_POST['email'] : '';
-$titulo = isset($_POST['titulo']) ? $_POST['titulo'] : '';
-$categoria = isset($_POST['categoria']) ? $_POST['categoria'] : 'otros';
-$prioridad = isset($_POST['prioridad']) ? $_POST['prioridad'] : 'media';
-$descripcion = isset($_POST['descripcion']) ? $_POST['descripcion'] : '';
+// Carpeta donde se guardan las fotos (DENTRO DE img)
+$uploadDir = '../img/';
+if (!file_exists($uploadDir)) {
+    mkdir($uploadDir, 0777, true);
+}
+
+$nombre = $_POST['nombre'] ?? '';
+$email = $_POST['email'] ?? '';
+$telefono = $_POST['telefono'] ?? '';
+$titulo = $_POST['titulo'] ?? '';
+$descripcion = $_POST['descripcion'] ?? '';
+$categoria = $_POST['categoria'] ?? 'otros';
+$latitud = $_POST['latitud'] ?? null;
+$longitud = $_POST['longitud'] ?? null;
+$usuario_id = $_POST['usuario_id'] ?? 'guest';
+
+if($latitud && $longitud) {
+    $latitud = floatval($latitud);
+    $longitud = floatval($longitud);
+} else {
+    $latitud = null;
+    $longitud = null;
+}
 
 if(empty($nombre) || empty($titulo) || empty($descripcion)) {
-    echo json_encode(['success' => false, 'error' => 'Campos requeridos faltantes']);
+    echo json_encode(['success' => false, 'error' => 'Campos requeridos']);
     exit;
 }
 
 try {
-    $stmt = $pdo->prepare("INSERT INTO reports (titulo, descripcion, categoria, prioridad, ciudadano_nombre, ciudadano_email, estado, fecha_reporte) VALUES (?, ?, ?, ?, ?, ?, 'pendiente', NOW())");
-    $stmt->execute([$titulo, $descripcion, $categoria, $prioridad, $nombre, $email]);
+    $stmt = $pdo->prepare("INSERT INTO reports (titulo, descripcion, categoria, prioridad, latitud, longitud, ciudadano_nombre, ciudadano_email, telefono, usuario_id, estado, fecha_reporte) VALUES (?, ?, ?, 'media', ?, ?, ?, ?, ?, ?, 'pendiente', NOW())");
+    $stmt->execute([$titulo, $descripcion, $categoria, $latitud, $longitud, $nombre, $email, $telefono, $usuario_id]);
+    $reporteId = $pdo->lastInsertId();
     
-    echo json_encode(['success' => true, 'id' => $pdo->lastInsertId()]);
+    $fotosSubidas = 0;
+    if(isset($_FILES['fotos']) && !empty($_FILES['fotos']['name'][0])) {
+        $files = $_FILES['fotos'];
+        for($i = 0; $i < count($files['name']); $i++) {
+            if($files['error'][$i] === UPLOAD_ERR_OK) {
+                $extension = strtolower(pathinfo($files['name'][$i], PATHINFO_EXTENSION));
+                // Nombre simple: reporte_ID_numero.extension
+                $nombreArchivo = 'reporte_' . $reporteId . '_' . $i . '.' . $extension;
+                $rutaArchivo = $uploadDir . $nombreArchivo;
+                
+                if(move_uploaded_file($files['tmp_name'][$i], $rutaArchivo)) {
+                    // Guardar SOLO el nombre del archivo en la BD
+                    $stmtFoto = $pdo->prepare("INSERT INTO reporte_fotos (reporte_id, foto_url, fecha_subida) VALUES (?, ?, NOW())");
+                    $stmtFoto->execute([$reporteId, $nombreArchivo]);
+                    $fotosSubidas++;
+                }
+            }
+        }
+    }
+    
+    echo json_encode([
+        'success' => true, 
+        'id' => $reporteId, 
+        'fotos' => $fotosSubidas
+    ]);
+    
 } catch(Exception $e) {
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 }
