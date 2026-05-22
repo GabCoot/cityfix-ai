@@ -532,6 +532,62 @@
         
         if(!localStorage.getItem('usuarioId')) localStorage.setItem('usuarioId', 'user_' + Date.now());
     });
+    function verificarSesion() {
+    return new Promise((resolve, reject) => {
+        $.ajax({
+            url: '../api/get_usuario.php',
+            type: 'GET',
+            dataType: 'json',
+            async: false,
+            success: function(data) {
+                if(data.success) {
+                    localStorage.setItem('usuarioId', data.usuario.id);
+                    localStorage.setItem('usuarioNombre', data.usuario.nombre);
+                    localStorage.setItem('usuarioEmail', data.usuario.email);
+                    resolve(true);
+                } else {
+                    mostrarToast('❌ Debes iniciar sesión para reportar', 'error');
+                    setTimeout(() => {
+                        window.location.href = 'login.php';
+                    }, 1500);
+                    reject(false);
+                }
+            },
+            error: function() {
+                mostrarToast('❌ Error de conexión', 'error');
+                reject(false);
+            }
+        });
+    });
+}
+
+// Modificar la función enviarReporte para verificar sesión al inicio
+function enviarReporte() {
+    // Verificar sesión primero
+    let sesionActiva = false;
+    $.ajax({
+        url: '../api/get_usuario.php',
+        type: 'GET',
+        dataType: 'json',
+        async: false,
+        success: function(data) {
+            if(data.success) {
+                sesionActiva = true;
+                localStorage.setItem('usuarioId', data.usuario.id);
+            }
+        }
+    });
+    
+    if(!sesionActiva) {
+        mostrarToast('❌ Debes iniciar sesión para reportar', 'error');
+        setTimeout(() => {
+            window.location.href = 'login.php';
+        }, 1500);
+        return;
+    }
+    
+    // ... resto del código de enviarReporte (el que ya tienes)
+}
 </script>
 </body>
 </html>

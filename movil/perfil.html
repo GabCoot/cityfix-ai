@@ -92,41 +92,42 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="js/app.js"></script>
     <script>
+        function obtenerUsuarioDesdeSesion() {
+            return new Promise((resolve, reject) => {
+                $.ajax({
+                    url: '../api/get_usuario.php',
+                    type: 'GET',
+                    dataType: 'json',
+                    success: function(data) {
+                        if(data.success) {
+                            localStorage.setItem('usuarioId', data.usuario.id);
+                            localStorage.setItem('usuarioNombre', data.usuario.nombre);
+                            localStorage.setItem('usuarioEmail', data.usuario.email);
+                            $('#displayNombre').text(data.usuario.nombre);
+                            $('#displayEmail').text(data.usuario.email);
+                            resolve(data.usuario);
+                        } else {
+                            window.location.href = 'login.php';
+                            reject();
+                        }
+                    },
+                    error: function() {
+                        window.location.href = 'login.php';
+                        reject();
+                    }
+                });
+            });
+        }
+
         function cargarPerfil() {
-            // Primero intentar obtener de localStorage
-            let nombre = localStorage.getItem('usuarioNombre');
-            let email = localStorage.getItem('usuarioEmail');
+            const nombre = localStorage.getItem('usuarioNombre');
+            const email = localStorage.getItem('usuarioEmail');
             
             if(nombre && email) {
                 $('#displayNombre').text(nombre);
                 $('#displayEmail').text(email);
-            } else {
-                // Si no hay datos en localStorage, obtener de la sesión PHP
-                $.ajax({
-                    url: '../api/get_session.php',
-                    type: 'GET',
-                    dataType: 'json',
-                    success: function(data) {
-                        if(data.success && data.usuario) {
-                            $('#displayNombre').text(data.usuario.nombre);
-                            $('#displayEmail').text(data.usuario.email);
-                            // Guardar en localStorage para futuras visitas
-                            localStorage.setItem('usuarioId', data.usuario.id);
-                            localStorage.setItem('usuarioNombre', data.usuario.nombre);
-                            localStorage.setItem('usuarioEmail', data.usuario.email);
-                        } else {
-                            $('#displayNombre').html('<span class="text-danger">No has iniciado sesión</span>');
-                            $('#displayEmail').html('<a href="login.php" class="text-primary">Iniciar sesión</a>');
-                        }
-                    },
-                    error: function() {
-                        $('#displayNombre').html('<span class="text-danger">Error de conexión</span>');
-                        $('#displayEmail').html('<a href="login.php" class="text-primary">Iniciar sesión</a>');
-                    }
-                });
             }
             
-            // Cargar preferencias
             const notificaciones = localStorage.getItem('notificaciones') === 'true';
             $('#notificacionesSwitch').prop('checked', notificaciones);
             
@@ -137,33 +138,26 @@
 
         function cerrarSesion() {
             if(confirm('¿Estás seguro de que deseas cerrar sesión?')) {
-                localStorage.removeItem('usuarioId');
-                localStorage.removeItem('usuarioNombre');
-                localStorage.removeItem('usuarioEmail');
-                localStorage.removeItem('usuarioToken');
-                localStorage.removeItem('basura_suscripcion_movil');
-                localStorage.removeItem('notificaciones');
-                localStorage.removeItem('darkMode');
-                
+                localStorage.clear();
                 window.location.href = 'logout.php';
             }
         }
 
         function editarPerfil() {
-            const nuevoNombre = prompt('Ingresa tu nombre:', $('#displayNombre').text());
-            if(nuevoNombre && nuevoNombre !== 'Cargando...' && nuevoNombre !== 'No has iniciado sesión') {
-                localStorage.setItem('usuarioNombre', nuevoNombre);
-                cargarPerfil();
+            const nuevoNombre = prompt('Ingresa tu nombre:', localStorage.getItem('usuarioNombre') || '');
+            if(nuevoNombre && nuevoNombre.trim() !== '') {
+                localStorage.setItem('usuarioNombre', nuevoNombre.trim());
+                $('#displayNombre').text(nuevoNombre.trim());
                 mostrarToast('Perfil actualizado');
             }
         }
 
         function cambiarPassword() {
-            alert('Funcionalidad en desarrollo.');
+            alert('Funcionalidad en desarrollo. Por favor contacta al administrador.');
         }
 
         function mostrarInfo() {
-            alert('CityFix AI\nVersión 1.0.0\n\nPlataforma para reportar problemas urbanos y mejorar tu ciudad.');
+            alert('CityFix AI\nVersión 1.0.0\n\nPlataforma para reportar problemas urbanos y mejorar tu ciudad.\n\nDesarrollado con ❤️ para la comunidad.');
         }
 
         function toggleNotificaciones(sw) {
@@ -184,7 +178,11 @@
             setTimeout(() => toast.remove(), 2000);
         }
 
-        $(document).ready(cargarPerfil);
+        $(document).ready(function() {
+            obtenerUsuarioDesdeSesion().then(() => {
+                cargarPerfil();
+            });
+        });
     </script>
 </body>
 </html>
