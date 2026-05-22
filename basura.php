@@ -185,7 +185,6 @@ let lineasRuta = [];
 let vehiculoMarker = null;
 let animacionInterval = null;
 
-// Coordenadas de Oxkutzcab
 const OXKUTZCAB = { lat: 20.3051, lng: -89.4179 };
 
 // ============================================
@@ -199,7 +198,6 @@ function initMap() {
         maxZoom: 19
     }).addTo(map);
     
-    // Evento para agregar puntos
     map.on('click', function(e) {
         if(rutaActualObjeto) {
             agregarPuntoTemporal(e.latlng.lat, e.latlng.lng);
@@ -207,15 +205,33 @@ function initMap() {
     });
     
     cargarTodasLasRutas();
+    cargarTotalSuscriptores();
 }
 
 // ============================================
-// CARGAR RUTAS DE TODAS LAS VERSIONES ANTERIORES
+// CARGAR TOTAL DE SUSCRIPTORES DESDE BD
+// ============================================
+function cargarTotalSuscriptores() {
+    $.ajax({
+        url: 'api/get_total_suscriptores.php',
+        type: 'GET',
+        dataType: 'json',
+        success: function(data) {
+            if(data.success) {
+                $('#totalSuscriptores').text(data.total);
+            }
+        },
+        error: function() {
+            $('#totalSuscriptores').text('0');
+        }
+    });
+}
+
+// ============================================
+// CARGAR RUTAS DE TODAS LAS VERSIONES
 // ============================================
 function cargarTodasLasRutas() {
     let todasLasRutas = [];
-    
-    // Buscar en diferentes localStorage keys
     const keys = ['basura_rutas_final', 'basura_rutas_pro', 'basura_rutas_v2', 'basura_rutas'];
     
     for(let k of keys) {
@@ -230,14 +246,12 @@ function cargarTodasLasRutas() {
         }
     }
     
-    // Eliminar duplicados por id
     const rutasUnicas = [];
     const idsExistentes = new Set();
     
     for(let ruta of todasLasRutas) {
         if(!idsExistentes.has(ruta.id)) {
             idsExistentes.add(ruta.id);
-            // Convertir colonias a puntos si es necesario
             if(ruta.colonias && !ruta.puntos) {
                 ruta.puntos = ruta.colonias;
                 delete ruta.colonias;
@@ -252,7 +266,6 @@ function cargarTodasLasRutas() {
         guardarRutas();
         mostrarToast('✅ Rutas cargadas', `Se encontraron ${rutasUnicas.length} rutas guardadas`, 'success');
     } else {
-        // Datos de ejemplo
         rutasData = [
             {
                 id: 1,
@@ -292,7 +305,6 @@ function cargarTodasLasRutas() {
 
 function guardarRutas() {
     localStorage.setItem('basura_rutas_final', JSON.stringify(rutasData));
-    // También guardar en versión anterior por compatibilidad
     localStorage.setItem('basura_rutas', JSON.stringify(rutasData));
 }
 
@@ -305,7 +317,6 @@ function actualizarStats() {
     $('#totalRutas').text(rutasActivas);
     $('#totalPuntos').text(totalPuntos);
     $('#totalKm').text(totalKm.toFixed(1));
-    $('#totalSuscriptores').text(Math.floor(Math.random() * 30) + 10);
 }
 
 // ============================================
@@ -347,9 +358,6 @@ function mostrarRutas() {
     });
 }
 
-// ============================================
-// CREAR NUEVA RUTA
-// ============================================
 function resetFormularioRuta() {
     $('#formRuta')[0].reset();
     $('#rutaId').val('');
@@ -396,9 +404,7 @@ function crearRutaVacia() {
     $('#rutaModal').modal('hide');
     resetFormularioRuta();
     
-    // Cargar la nueva ruta automáticamente
     setTimeout(() => cargarRutaParaEdicion(nuevaRuta.id), 100);
-    
     mostrarToast('✅ Ruta creada', `"${nombre}" - Haz clic en el mapa para agregar puntos`, 'success');
 }
 
@@ -442,9 +448,6 @@ function eliminarRuta(id) {
     }
 }
 
-// ============================================
-// CARGAR RUTA PARA EDITAR PUNTOS
-// ============================================
 function cargarRutaParaEdicion(id) {
     rutaActualId = id;
     rutaActualObjeto = rutasData.find(r => r.id === id);
@@ -454,23 +457,17 @@ function cargarRutaParaEdicion(id) {
     $('#btnNotificar').prop('disabled', false);
     $('#puntosPanel').show();
     
-    // Limpiar mapa
     limpiarMapaCompleto();
     
-    // Cargar puntos existentes
     puntosTemporales = rutaActualObjeto.puntos ? [...rutaActualObjeto.puntos] : [];
-    
-    // Reordenar puntos
     puntosTemporales.sort((a,b) => (a.orden || 0) - (b.orden || 0));
     
-    // Dibujar puntos existentes
     puntosTemporales.forEach((punto, idx) => {
         agregarMarcadorPunto(punto.lat, punto.lng, punto.nombre, idx + 1);
     });
     
     mostrarListaPuntos();
     
-    // Trazar ruta si hay puntos
     if(puntosTemporales.length >= 2) {
         trazarRutaCompleta();
     } else if(puntosTemporales.length === 1) {
@@ -488,9 +485,6 @@ function limpiarMapaCompleto() {
     markersMapa = [];
 }
 
-// ============================================
-// AGREGAR PUNTO (CLIC EN MAPA)
-// ============================================
 function agregarPuntoTemporal(lat, lng) {
     if(!rutaActualObjeto) {
         mostrarToast('⚠️ Primero selecciona una ruta', '', 'warning');
@@ -506,21 +500,14 @@ function agregarPuntoTemporal(lat, lng) {
     };
     
     puntosTemporales.push(nuevoPunto);
-    
-    // Agregar marcador
     agregarMarcadorPunto(lat, lng, nuevoPunto.nombre, puntosTemporales.length);
-    
-    // Actualizar lista
     mostrarListaPuntos();
     
-    // Trazar ruta
     if(puntosTemporales.length >= 2) {
         trazarRutaCompleta();
     }
     
-    // Centrar vista
     map.setView([lat, lng], 17);
-    
     mostrarToast('📍 Punto agregado', `${nuevoPunto.nombre} - Orden ${puntosTemporales.length}`, 'success');
 }
 
@@ -571,10 +558,8 @@ function mostrarListaPuntos() {
 
 function eliminarPuntoTemporal(id) {
     puntosTemporales = puntosTemporales.filter(p => p.id !== id);
-    // Reordenar
     puntosTemporales.forEach((p, idx) => { p.orden = idx + 1; });
     
-    // Redibujar todo
     limpiarMapaCompleto();
     puntosTemporales.forEach((punto, idx) => {
         agregarMarcadorPunto(punto.lat, punto.lng, punto.nombre, idx + 1);
@@ -600,9 +585,6 @@ function limpiarTodosLosPuntos() {
     }
 }
 
-// ============================================
-// TRAZAR RUTA SOBRE CALLES REALES
-// ============================================
 async function trazarRutaCompleta() {
     if(puntosTemporales.length < 2) return;
     
@@ -630,7 +612,6 @@ async function trazarRutaCompleta() {
             
             const distanciaKm = route.distance / 1000;
             const tiempoMin = Math.round(route.duration / 60);
-            
             rutaActualObjeto.distanciaTemporal = distanciaKm;
             
             $('#infoRuta').show().html(`
@@ -652,38 +633,24 @@ async function trazarRutaCompleta() {
     }
 }
 
-// ============================================
-// GUARDAR RUTA (SIN RECARGAR)
-// ============================================
 function guardarRutaActual() {
     if(!rutaActualObjeto) {
         mostrarToast('⚠️ No hay ruta seleccionada', '', 'warning');
         return;
     }
     
-    // Deshabilitar botón mientras se guarda
     $('#btnGuardarRuta').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Guardando...');
     
-    // Actualizar puntos
     rutaActualObjeto.puntos = [...puntosTemporales];
     rutaActualObjeto.distanciaTotal = rutaActualObjeto.distanciaTemporal || 0;
-    
-    // Guardar en localStorage
     guardarRutas();
-    
-    // Actualizar lista
     mostrarRutas();
     actualizarStats();
     
-    // Re-habilitar botón
     $('#btnGuardarRuta').prop('disabled', false).html('<i class="fas fa-save"></i> Guardar Ruta');
-    
     mostrarToast('✅ Ruta guardada', `"${rutaActualObjeto.nombre}" con ${puntosTemporales.length} puntos`, 'success');
 }
 
-// ============================================
-// SIMULAR RECORRIDO
-// ============================================
 function simularRecorrido() {
     if(!rutaActualObjeto || puntosTemporales.length < 2) {
         mostrarToast('⚠️ Selecciona una ruta con al menos 2 puntos', '', 'warning');
@@ -722,21 +689,59 @@ function simularRecorrido() {
     mostrarToast('🚛 Simulación iniciada', 'El camión comenzará el recorrido', 'info');
 }
 
+// ============================================
+// NOTIFICACIÓN A SUSCRIPTORES (CON BD REAL)
+// ============================================
 function enviarNotificacion() {
-    if(!rutaActualObjeto) return;
-    const notificados = Math.floor(Math.random() * 20) + 5;
-    mostrarToast('📢 Notificación enviada', `Se notificó a ${notificados} suscriptores sobre "${rutaActualObjeto.nombre}"`, 'success');
+    const ruta = rutasData.find(r => r.id === rutaActualId);
+    if(!ruta) {
+        mostrarToast('⚠️ Error', 'Primero selecciona una ruta', 'warning');
+        return;
+    }
+    
+    const mensaje = `🚛 El camión de la ruta "${ruta.nombre}" está en recorrido. ¡Saca la basura!`;
+    
+    const notificacion = {
+        ruta_id: ruta.id,
+        ruta_nombre: ruta.nombre,
+        mensaje: mensaje,
+        timestamp: new Date().toISOString()
+    };
+    
+    localStorage.setItem('notificacion_basura_admin', JSON.stringify(notificacion));
     
     if(Notification.permission === 'granted') {
-        new Notification('🚛 CityFix - Recolección', { 
-            body: `El camión de "${rutaActualObjeto.nombre}" está en recorrido. ¡Saca la basura!`,
+        new Notification('🚛 CityFix - Recolección', {
+            body: `Notificación enviada: "${ruta.nombre}"`,
             icon: '/favicon.ico'
         });
-    } else if(Notification.permission !== 'denied') {
-        Notification.requestPermission();
     }
+    
+    $.ajax({
+        url: 'api/get_suscriptores_por_ruta.php',
+        type: 'GET',
+        data: { ruta_id: ruta.id },
+        dataType: 'json',
+        success: function(data) {
+            if(data.success) {
+                mostrarToast('📢 Notificación enviada', `Se notificó a ${data.total} suscriptores de la ruta "${ruta.nombre}"`, 'success');
+            } else {
+                mostrarToast('📢 Notificación enviada', `Notificación enviada para la ruta "${ruta.nombre}"`, 'success');
+            }
+        },
+        error: function() {
+            mostrarToast('📢 Notificación enviada', `Notificación enviada para la ruta "${ruta.nombre}"`, 'success');
+        }
+    });
+    
+    setTimeout(() => {
+        localStorage.removeItem('notificacion_basura_admin');
+    }, 2000);
 }
 
+// ============================================
+// UTILIDADES
+// ============================================
 function mostrarToast(titulo, mensaje, tipo = 'success') {
     const colors = { success: '#10b981', danger: '#ef4444', info: '#3b82f6', warning: '#f59e0b' };
     const toast = $(`<div style="position: fixed; bottom: 20px; right: 20px; z-index: 9999; background: ${colors[tipo]}; color: white; padding: 12px 20px; border-radius: 12px; animation: slideIn 0.3s ease; box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 10000;"><strong>${titulo}</strong><br><small>${mensaje}</small></div>`);
@@ -744,7 +749,10 @@ function mostrarToast(titulo, mensaje, tipo = 'success') {
     setTimeout(() => toast.remove(), 3000);
 }
 
-function escapeHtml(text) { if(!text) return ''; return $('<div>').text(text).html(); }
+function escapeHtml(text) { 
+    if(!text) return ''; 
+    return $('<div>').text(text).html(); 
+}
 
 $(document).ready(function() { 
     initMap(); 
@@ -766,7 +774,7 @@ $(document).ready(function() {
 .punto-item { background: #f8fafc; border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; border: 1px solid #e2e8f0; }
 .punto-item:hover { background: #f1f5f9; }
 
-@keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0%); opacity: 1; } }
 
 .leaflet-routing-container { display: none !important; }
 

@@ -110,7 +110,71 @@
     
     const OXKUTZCAB = { lat: 20.3051, lng: -89.4179 };
     
-    // Verificar si el usuario está logueado al cargar la página
+    // ============================================
+    // RECIBIR NOTIFICACIONES DEL ADMIN
+    // ============================================
+    function escucharNotificacionesAdmin() {
+        // Escuchar cambios en localStorage
+        window.addEventListener('storage', function(e) {
+            if(e.key === 'notificacion_basura_admin' && e.newValue) {
+                try {
+                    const notificacion = JSON.parse(e.newValue);
+                    console.log('📢 Notificación recibida:', notificacion);
+                    
+                    // Mostrar notificación push
+                    if(Notification.permission === 'granted') {
+                        new Notification('🚛 CityFix - Recolección de Basura', {
+                            body: notificacion.mensaje,
+                            icon: '/icon-192.png',
+                            vibrate: [200, 100, 200]
+                        });
+                    }
+                    
+                    // Mostrar toast en la app
+                    mostrarToast(`🔔 ${notificacion.mensaje}`);
+                } catch(e) {
+                    console.error('Error al procesar notificación:', e);
+                }
+            }
+        });
+        
+        // Revisar si hay notificación pendiente al cargar la página
+        const notificacionPendiente = localStorage.getItem('notificacion_basura_admin');
+        if(notificacionPendiente) {
+            try {
+                const noti = JSON.parse(notificacionPendiente);
+                mostrarToast(`🔔 ${noti.mensaje}`);
+                localStorage.removeItem('notificacion_basura_admin');
+            } catch(e) {}
+        }
+    }
+    
+    function solicitarNotificaciones() {
+        if('Notification' in window) {
+            if(Notification.permission === 'granted') {
+                mostrarToast('✅ Notificaciones ya activadas');
+            } else if(Notification.permission !== 'denied') {
+                Notification.requestPermission().then(function(permission) {
+                    if(permission === 'granted') {
+                        mostrarToast('✅ Notificaciones activadas');
+                        new Notification('🚛 CityFix - Recolección', {
+                            body: 'Recibirás alertas cuando el camión de basura esté en tu zona'
+                        });
+                    } else {
+                        mostrarToast('❌ No se activaron las notificaciones');
+                    }
+                });
+            } else {
+                mostrarToast('❌ Notificaciones bloqueadas. Ve a configuración');
+            }
+        } else {
+            mostrarToast('❌ Tu navegador no soporta notificaciones');
+        }
+    }
+    
+    // ============================================
+    // VERIFICAR SESIÓN
+    // ============================================
     function verificarSesion() {
         return new Promise((resolve, reject) => {
             $.ajax({
@@ -143,7 +207,6 @@
             subdomains: 'abcd',
             maxZoom: 19
         }).addTo(map);
-        
         cargarRutas();
         obtenerUbicacion();
     }
@@ -180,7 +243,6 @@
     
     function cargarRutas() {
         let rutasGuardadas = localStorage.getItem('basura_rutas_final');
-        
         if(rutasGuardadas && rutasGuardadas !== '[]' && rutasGuardadas !== 'null') {
             rutasData = JSON.parse(rutasGuardadas);
         } else {
@@ -191,10 +253,8 @@
                 rutasData = [];
             }
         }
-        
         rutasData = rutasData.filter(r => r.activo !== false);
         mostrarRutasEnLista();
-        
         if(rutasData.length > 0 && !rutaActualId) {
             seleccionarRuta(rutasData[0].id);
         }
@@ -203,36 +263,16 @@
     function mostrarRutasEnLista() {
         const container = $('#rutasList');
         container.empty();
-        
         if(rutasData.length === 0) {
-            container.html(`
-                <div class="text-center text-muted py-4">
-                    <i class="fas fa-trash-alt fa-3x mb-3 opacity-50"></i>
-                    <p>No hay rutas disponibles</p>
-                    <small>El administrador está configurando las rutas</small>
-                </div>
-            `);
+            container.html(`<div class="text-center text-muted py-4"><i class="fas fa-trash-alt fa-3x mb-3 opacity-50"></i><p>No hay rutas disponibles</p><small>El administrador está configurando las rutas</small></div>`);
             return;
         }
-        
         const diasMap = { 'lunes':'Lun','martes':'Mar','miercoles':'Mié','jueves':'Jue','viernes':'Vie','sabado':'Sáb','domingo':'Dom' };
-        
         rutasData.forEach(ruta => {
             let diasHtml = '';
-            if(ruta.dias) {
-                ruta.dias.forEach(d => { diasHtml += `<span class="day-badge">${diasMap[d] || d.substring(0,3)}</span>`; });
-            }
-            
+            if(ruta.dias) { ruta.dias.forEach(d => { diasHtml += `<span class="day-badge">${diasMap[d] || d.substring(0,3)}</span>`; }); }
             const puntosCount = ruta.puntos ? ruta.puntos.length : 0;
-            
-            const card = $(`
-                <div class="route-item ${rutaActualId === ruta.id ? 'active' : ''}" data-id="${ruta.id}" style="border-left-color: ${ruta.color || '#10b981'}">
-                    <div class="route-name">${escapeHtml(ruta.nombre)}</div>
-                    <div class="route-schedule"><i class="fas fa-clock"></i> ${ruta.hora_inicio || '--:--'} - ${ruta.hora_fin || '--:--'}</div>
-                    <div class="route-days">${diasHtml}</div>
-                    <div class="route-schedule mt-1"><i class="fas fa-map-pin"></i> ${puntosCount} puntos</div>
-                </div>
-            `);
+            const card = $(`<div class="route-item ${rutaActualId === ruta.id ? 'active' : ''}" data-id="${ruta.id}" style="border-left-color: ${ruta.color || '#10b981'}"><div class="route-name">${escapeHtml(ruta.nombre)}</div><div class="route-schedule"><i class="fas fa-clock"></i> ${ruta.hora_inicio || '--:--'} - ${ruta.hora_fin || '--:--'}</div><div class="route-days">${diasHtml}</div><div class="route-schedule mt-1"><i class="fas fa-map-pin"></i> ${puntosCount} puntos</div></div>`);
             card.on('click', () => seleccionarRuta(ruta.id));
             container.append(card);
         });
@@ -254,9 +294,7 @@
         $('#selectedRouteSchedule').html(`<i class="fas fa-clock"></i> ${rutaActualObjeto.hora_inicio || '--:--'} - ${rutaActualObjeto.hora_fin || '--:--'} | ${diasTexto}`);
         
         let daysHtml = '';
-        if(rutaActualObjeto.dias) {
-            rutaActualObjeto.dias.forEach(d => { daysHtml += `<span class="day-badge">${diasMap[d] || d}</span>`; });
-        }
+        if(rutaActualObjeto.dias) { rutaActualObjeto.dias.forEach(d => { daysHtml += `<span class="day-badge">${diasMap[d] || d}</span>`; }); }
         $('#selectedRouteDays').html(daysHtml);
         $('#selectedRouteCard').show();
         $('#puntosSection').show();
@@ -275,9 +313,7 @@
                 puntosValidos.push([punto.lat, punto.lng]);
                 const marker = L.marker([punto.lat, punto.lng], {
                     icon: L.divIcon({
-                        html: `<div style="background-color: ${rutaActualObjeto.color || '#10b981'}; width: 16px; height: 16px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 4px rgba(0,0,0,0.3);">
-                                   <span style="position: absolute; top: -16px; left: 3px; font-size: 10px; background: white; padding: 2px 5px; border-radius: 10px;">${idx+1}</span>
-                               </div>`,
+                        html: `<div style="background-color: ${rutaActualObjeto.color || '#10b981'}; width: 16px; height: 16px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 4px rgba(0,0,0,0.3);"><span style="position: absolute; top: -16px; left: 3px; font-size: 10px; background: white; padding: 2px 5px; border-radius: 10px;">${idx+1}</span></div>`,
                         iconSize: [22, 22]
                     })
                 }).bindPopup(`<b>${escapeHtml(punto.nombre)}</b><br>📍 Punto de recolección`);
@@ -295,19 +331,14 @@
     
     async function trazarRutaConCalles(puntos) {
         if(puntos.length < 2) return;
-        
         let coordinates = puntos.map(p => `${p[1]},${p[0]}`).join(';');
         const url = `https://router.project-osrm.org/route/v1/driving/${coordinates}?overview=full&geometries=geojson`;
-        
         try {
             const response = await fetch(url);
             const data = await response.json();
-            
             if(data.code === 'Ok' && data.routes && data.routes.length > 0) {
                 const route = data.routes[0];
-                const routeLine = L.geoJSON(route.geometry, {
-                    style: { color: rutaActualObjeto.color || '#10b981', weight: 5, opacity: 0.8 }
-                }).addTo(map);
+                const routeLine = L.geoJSON(route.geometry, { style: { color: rutaActualObjeto.color || '#10b981', weight: 5, opacity: 0.8 } }).addTo(map);
                 markersMapa.push(routeLine);
                 map.fitBounds(routeLine.getBounds(), { padding: [30, 30] });
             } else {
@@ -317,34 +348,22 @@
             }
         } catch(error) {
             console.error('Error trazando ruta:', error);
+            const fallbackLine = L.polyline(puntos, { color: rutaActualObjeto.color || '#10b981', weight: 4, opacity: 0.6 }).addTo(map);
+            markersMapa.push(fallbackLine);
         }
     }
     
     function mostrarPuntos() {
         const container = $('#puntosLista');
         container.empty();
-        
         const puntos = rutaActualObjeto?.puntos || [];
         puntos.sort((a,b) => (a.orden || 0) - (b.orden || 0));
-        
         if(puntos.length === 0) {
             container.html('<div class="text-center text-muted py-3">No hay calles registradas para esta ruta</div>');
             return;
         }
-        
         puntos.forEach((punto, idx) => {
-            const div = $(`
-                <div class="point-item">
-                    <div class="point-number">${idx + 1}</div>
-                    <div class="point-name">
-                        ${escapeHtml(punto.nombre)}
-                        <div class="point-location">${punto.lat.toFixed(5)}, ${punto.lng.toFixed(5)}</div>
-                    </div>
-                    <button class="btn btn-sm btn-outline-primary" onclick="centrarEnPunto(${punto.lat}, ${punto.lng})">
-                        <i class="fas fa-crosshairs"></i>
-                    </button>
-                </div>
-            `);
+            const div = $(`<div class="point-item"><div class="point-number">${idx + 1}</div><div class="point-name">${escapeHtml(punto.nombre)}<div class="point-location">${punto.lat.toFixed(5)}, ${punto.lng.toFixed(5)}</div></div><button class="btn btn-sm btn-outline-primary" onclick="centrarEnPunto(${punto.lat}, ${punto.lng})"><i class="fas fa-crosshairs"></i></button></div>`);
             container.append(div);
         });
     }
@@ -354,114 +373,41 @@
         mostrarToast('📍 Centrando en punto');
     }
     
-    // ============================================
-    // SUSCRIBIRSE A RUTA - GUARDA EN BD
-    // ============================================
-    
-  function suscribirseARuta() {
-    if(!rutaActualObjeto) {
-        mostrarToast('❌ Primero selecciona una ruta');
-        return;
-    }
-    
-    const usuarioId = localStorage.getItem('usuarioId');
-    
-    if(!usuarioId) {
-        mostrarToast('⚠️ Debes iniciar sesión para suscribirte');
-        setTimeout(() => {
-            window.location.href = 'login.php';
-        }, 1500);
-        return;
-    }
-    
-    // Mostrar loading en el botón
-    const $btn = $('#btnSuscribirse');
-    const textoOriginal = $btn.html();
-    $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Suscribiendo...');
-    
-    $.ajax({
-        url: '../api/guardar_suscripcion.php',
-        type: 'POST',
-        data: {
-            usuario_id: usuarioId,
-            ruta_id: rutaActualId,
-            ruta_nombre: rutaActualObjeto.nombre
-        },
-        dataType: 'json',
-        success: function(data) {
-            if(data.success) {
-                mostrarToast(`✅ Suscrito a "${rutaActualObjeto.nombre}"`);
-                $btn.html('<i class="fas fa-bell"></i> Suscrito').prop('disabled', true);
-                
-                if(Notification.permission === 'granted') {
-                    new Notification('🚛 CityFix - Recolección', {
-                        body: `Te suscribiste a la ruta "${rutaActualObjeto.nombre}". Recibirás alertas.`
-                    });
-                }
-            } else {
-                if(data.already) {
+    function suscribirseARuta() {
+        if(!rutaActualObjeto) return;
+        const usuarioId = localStorage.getItem('usuarioId');
+        if(!usuarioId) {
+            mostrarToast('⚠️ Inicia sesión para suscribirte');
+            setTimeout(() => { window.location.href = 'login.php'; }, 1500);
+            return;
+        }
+        
+        const $btn = $('#btnSuscribirse');
+        const textoOriginal = $btn.html();
+        $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Suscribiendo...');
+        
+        $.ajax({
+            url: '../api/guardar_suscripcion.php',
+            type: 'POST',
+            data: { usuario_id: usuarioId, ruta_id: rutaActualId, ruta_nombre: rutaActualObjeto.nombre },
+            dataType: 'json',
+            success: function(data) {
+                if(data.success) {
+                    mostrarToast(`✅ Suscrito a "${rutaActualObjeto.nombre}"`);
+                    $btn.html('<i class="fas fa-bell"></i> Suscrito').prop('disabled', true);
+                } else if(data.already) {
                     mostrarToast(`ℹ️ Ya estás suscrito a "${rutaActualObjeto.nombre}"`);
                     $btn.html('<i class="fas fa-bell"></i> Suscrito').prop('disabled', true);
                 } else {
                     mostrarToast(`❌ Error: ${data.error || 'No se pudo suscribir'}`);
                     $btn.prop('disabled', false).html(textoOriginal);
                 }
-            }
-        },
-        error: function() {
-            mostrarToast('❌ Error de conexión al guardar suscripción');
-            $btn.prop('disabled', false).html(textoOriginal);
-        }
-    });
-}
-    
-    // ============================================
-    // NOTIFICACIONES
-    // ============================================
-    
-    function solicitarNotificaciones() {
-        if('Notification' in window) {
-            if(Notification.permission === 'granted') {
-                mostrarToast('✅ Notificaciones ya activadas');
-            } else if(Notification.permission !== 'denied') {
-                Notification.requestPermission().then(function(permission) {
-                    if(permission === 'granted') {
-                        mostrarToast('✅ Notificaciones activadas');
-                        new Notification('🚛 CityFix - Recolección', {
-                            body: 'Recibirás alertas cuando el camión de basura esté en tu zona'
-                        });
-                    } else {
-                        mostrarToast('❌ No se activaron las notificaciones');
-                    }
-                });
-            } else {
-                mostrarToast('❌ Notificaciones bloqueadas. Ve a configuración');
-            }
-        } else {
-            mostrarToast('❌ Tu navegador no soporta notificaciones');
-        }
-    }
-    
-    function escucharNotificacionesAdmin() {
-        window.addEventListener('storage', function(e) {
-            if(e.key === 'notificacion_basura_admin') {
-                const notificacion = JSON.parse(e.newValue);
-                if(notificacion && notificacion.ruta_id === rutaActualId) {
-                    mostrarNotificacionPush(notificacion.mensaje);
-                    mostrarToast(`🔔 ${notificacion.mensaje}`);
-                }
+            },
+            error: function() {
+                mostrarToast('❌ Error de conexión');
+                $btn.prop('disabled', false).html(textoOriginal);
             }
         });
-    }
-    
-    function mostrarNotificacionPush(mensaje) {
-        if(Notification.permission === 'granted') {
-            new Notification('🚛 CityFix - Recolección de Basura', {
-                body: mensaje,
-                icon: '/icon-192.png',
-                vibrate: [200, 100, 200]
-            });
-        }
     }
     
     function mostrarToast(mensaje) {
@@ -478,13 +424,10 @@
     // ============================================
     // INICIALIZACIÓN
     // ============================================
-    
     $(document).ready(function() {
         verificarSesion().then(() => {
             initMap();
-            escucharNotificacionesAdmin();
-            
-            // Evento del botón suscribirse
+            escucharNotificacionesAdmin(); // <-- ESCUCHA NOTIFICACIONES
             $('#btnSuscribirse').on('click', suscribirseARuta);
         });
     });
