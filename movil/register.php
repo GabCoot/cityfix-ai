@@ -3,40 +3,53 @@ session_start();
 require_once '../config/conexion.php';
 
 $error = '';
+$success = '';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
+    $nombre = trim($_POST['nombre'] ?? '');
     $email = trim($_POST['email'] ?? '');
     $password = trim($_POST['password'] ?? '');
+    $confirm_password = trim($_POST['confirm_password'] ?? '');
 
-    if (!empty($email) && !empty($password)) {
+    if (!empty($nombre) && !empty($email) && !empty($password)) {
 
-        // Buscar usuario
-        $sql = "SELECT * FROM usuarios WHERE email = ?";
-
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute([$email]);
-
-        $usuario = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        // Validar usuario
-        if ($usuario && $usuario['password'] == md5($password)) {
-
-            $_SESSION['usuario_id'] = $usuario['id'];
-            $_SESSION['usuario_nombre'] = $usuario['nombre'];
-            $_SESSION['usuario_email'] = $usuario['email'];
-            $_SESSION['usuario_rol'] = $usuario['rol'];
-
-            // Redirección al módulo móvil
-            header("Location: index.html");
-            exit;
-
-        } else {
-            $error = "Correo o contraseña incorrectos";
+        // Validar que las contraseñas coincidan
+        if ($password !== $confirm_password) {
+            $error = "Las contraseñas no coinciden";
         }
+        // Validar longitud de contraseña
+        elseif (strlen($password) < 6) {
+            $error = "La contraseña debe tener al menos 6 caracteres";
+        }
+        else {
+            // Verificar si el email ya existe
+            $sql = "SELECT id FROM usuarios WHERE email = ?";
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute([$email]);
 
+            if ($stmt->fetch()) {
+                $error = "El correo electrónico ya está registrado";
+            } else {
+                // Insertar nuevo usuario (solo los campos que existen)
+                $hashedPassword = md5($password);
+                $sql = "INSERT INTO usuarios (nombre, email, password, rol) VALUES (?, ?, ?, 'usuario')";
+                $stmt = $pdo->prepare($sql);
+                
+                if ($stmt->execute([$nombre, $email, $hashedPassword])) {
+                    $success = "¡Registro exitoso! Redirigiendo al login...";
+                    // Guardar email para prellenar en login
+                    $_SESSION['registro_email'] = $email;
+                    
+                    // Redirigir después de 2 segundos
+                    header("refresh:2; url=login.php");
+                } else {
+                    $error = "Error al registrar usuario. Intenta nuevamente.";
+                }
+            }
+        }
     } else {
-        $error = "Completa todos los campos";
+        $error = "Completa todos los campos obligatorios";
     }
 }
 ?>
@@ -49,7 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <meta name="theme-color" content="#10b981">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>CityFix AI - Iniciar Sesión</title>
+    <title>CityFix AI - Crear Cuenta</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -69,7 +82,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             padding: 20px;
         }
         
-        /* Logo y header */
         .logo-container {
             text-align: center;
             margin-bottom: 30px;
@@ -103,7 +115,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             font-size: 0.85rem;
         }
         
-        /* Tarjeta de login */
         .auth-card {
             background: white;
             border-radius: 32px;
@@ -113,7 +124,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             box-shadow: 0 10px 30px rgba(0,0,0,0.08);
         }
         
-        /* Campos de formulario */
         .form-control-custom {
             background: #f8fafc;
             border: 1px solid #e2e8f0;
@@ -131,8 +141,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             box-shadow: 0 0 0 3px rgba(16,185,129,0.1);
         }
         
-        /* Botón */
-        .btn-login {
+        .btn-register {
             background: linear-gradient(135deg, #10b981, #059669);
             color: white;
             border: none;
@@ -145,33 +154,29 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             cursor: pointer;
         }
         
-        .btn-login:hover {
+        .btn-register:hover {
             transform: translateY(-2px);
             box-shadow: 0 4px 12px rgba(16,185,129,0.4);
         }
         
-        .btn-login:active {
+        .btn-register:active {
             transform: translateY(0);
         }
         
-        /* Enlace de registro */
-        .register-link {
+        .login-link {
             text-align: center;
             margin-top: 20px;
             color: #64748b;
             font-size: 0.85rem;
         }
         
-        .register-link a {
+        .login-link a {
             color: #10b981;
             text-decoration: none;
             font-weight: 600;
         }
         
-        /* Mensaje de error */
-        .error-msg {
-            background: #fee2e2;
-            color: #dc2626;
+        .error-msg, .success-msg {
             padding: 12px 16px;
             border-radius: 16px;
             font-size: 0.8rem;
@@ -181,11 +186,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             gap: 10px;
         }
         
-        .error-msg i {
+        .error-msg {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+        
+        .success-msg {
+            background: #d1fae5;
+            color: #059669;
+        }
+        
+        .error-msg i, .success-msg i {
             font-size: 1rem;
         }
         
-        /* Input con icono */
         .input-group-icon {
             position: relative;
         }
@@ -202,6 +216,26 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         .input-group-icon .form-control-custom {
             padding-left: 45px;
         }
+        
+        .terms {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 16px 0;
+            font-size: 0.75rem;
+            color: #64748b;
+        }
+        
+        .terms input {
+            width: 18px;
+            height: 18px;
+            accent-color: #10b981;
+        }
+        
+        .terms a {
+            color: #10b981;
+            text-decoration: none;
+        }
     </style>
 </head>
 <body>
@@ -209,10 +243,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 <div class="auth-card">
     <div class="logo-container">
         <div class="logo-icon">
-            <i class="fas fa-city"></i>
+            <i class="fas fa-user-plus"></i>
         </div>
-        <h2>CityFix AI</h2>
-        <p>Bienvenido de vuelta</p>
+        <h2>Crear Cuenta</h2>
+        <p>Regístrate para comenzar</p>
     </div>
 
     <?php if($error): ?>
@@ -222,26 +256,55 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         </div>
     <?php endif; ?>
 
+    <?php if($success): ?>
+        <div class="success-msg">
+            <i class="fas fa-check-circle"></i>
+            <?= htmlspecialchars($success) ?>
+        </div>
+    <?php endif; ?>
+
     <form method="POST">
         <div class="input-group-icon">
+            <i class="fas fa-user"></i>
+            <input type="text" name="nombre" class="form-control-custom" placeholder="Nombre completo" required autocomplete="name" value="<?= htmlspecialchars($_POST['nombre'] ?? '') ?>">
+        </div>
+        
+        <div class="input-group-icon">
             <i class="fas fa-envelope"></i>
-            <input type="email" name="email" class="form-control-custom" placeholder="Correo electrónico" required autocomplete="email">
+            <input type="email" name="email" class="form-control-custom" placeholder="Correo electrónico" required autocomplete="email" value="<?= htmlspecialchars($_POST['email'] ?? '') ?>">
         </div>
         
         <div class="input-group-icon">
             <i class="fas fa-lock"></i>
-            <input type="password" name="password" class="form-control-custom" placeholder="Contraseña" required autocomplete="current-password">
+            <input type="password" name="password" class="form-control-custom" placeholder="Contraseña" required autocomplete="new-password">
+        </div>
+        
+        <div class="input-group-icon">
+            <i class="fas fa-check-circle"></i>
+            <input type="password" name="confirm_password" class="form-control-custom" placeholder="Confirmar contraseña" required>
+        </div>
+        
+        <div class="terms">
+            <input type="checkbox" id="terms" name="terms" required>
+            <label for="terms">
+                Acepto los <a href="#" onclick="mostrarTerminos(); return false;">Términos y Condiciones</a>
+            </label>
         </div>
 
-        <button type="submit" class="btn-login">
-            <i class="fas fa-arrow-right-to-bracket me-2"></i>Iniciar Sesión
+        <button type="submit" class="btn-register">
+            <i class="fas fa-user-plus me-2"></i>Registrarme
         </button>
     </form>
 
-    <div class="register-link">
-        ¿No tienes cuenta? <a href="register.php">Regístrate aquí</a>
+    <div class="login-link">
+        ¿Ya tienes cuenta? <a href="login.php">Inicia sesión aquí</a>
     </div>
 </div>
 
+<script>
+    function mostrarTerminos() {
+        alert('Términos y Condiciones de CityFix AI\n\n1. Los reportes son de dominio público\n2. No compartimos tus datos personales\n3. Puedes cancelar tu suscripción en cualquier momento\n4. Las notificaciones son opcionales\n\nVersión 1.0 - CityFix AI');
+    }
+</script>
 </body>
 </html>
