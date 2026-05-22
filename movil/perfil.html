@@ -7,9 +7,24 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="css/app.css">
+    <style>
+        .toast-message {
+            position: fixed;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1e293b;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 40px;
+            font-size: 0.8rem;
+            z-index: 9999;
+            white-space: nowrap;
+        }
+    </style>
 </head>
 <body>
-    <!-- Bottom Navigation CON PESTAÑA BASURA AGREGADA -->
+    <!-- Bottom Navigation -->
     <div class="bottom-nav">
         <a href="index.html" class="nav-item"><i class="fas fa-home"></i><span>Inicio</span></a>
         <a href="reportar.html" class="nav-item"><i class="fas fa-plus-circle"></i><span>Reportar</span></a>
@@ -24,12 +39,13 @@
         </div>
 
         <div class="px-3 mt-3">
+            <!-- Tarjeta de perfil con nombre y email -->
             <div class="card-mobile text-center mb-3">
                 <div class="profile-avatar mx-auto mb-3">
                     <i class="fas fa-user-circle fa-4x text-primary"></i>
                 </div>
-                <h4 id="displayNombre" class="fw-bold">Usuario</h4>
-                <p id="displayEmail" class="text-muted small">usuario@ejemplo.com</p>
+                <h4 id="displayNombre" class="fw-bold">Cargando...</h4>
+                <p id="displayEmail" class="text-muted small">cargando...</p>
                 <button class="btn btn-outline-danger btn-sm" onclick="cerrarSesion()">
                     <i class="fas fa-sign-out-alt"></i> Cerrar Sesión
                 </button>
@@ -79,11 +95,25 @@
     <script src="js/app.js"></script>
     <script>
         function cargarPerfil() {
-            const nombre = localStorage.getItem('usuarioNombre') || 'Usuario';
-            const email = localStorage.getItem('usuarioEmail') || 'usuario@ejemplo.com';
-            $('#displayNombre').text(nombre);
-            $('#displayEmail').text(email);
+            // Obtener datos del localStorage
+            const nombre = localStorage.getItem('usuarioNombre');
+            const email = localStorage.getItem('usuarioEmail');
+            const usuarioId = localStorage.getItem('usuarioId');
             
+            console.log('Usuario ID:', usuarioId);
+            console.log('Nombre:', nombre);
+            console.log('Email:', email);
+            
+            // Mostrar datos o mensaje si no hay sesión
+            if(nombre && email) {
+                $('#displayNombre').text(nombre);
+                $('#displayEmail').text(email);
+            } else {
+                $('#displayNombre').html('<span class="text-danger">No has iniciado sesión</span>');
+                $('#displayEmail').html('<a href="login.php" class="text-primary">Iniciar sesión</a>');
+            }
+            
+            // Cargar preferencias
             const notificaciones = localStorage.getItem('notificaciones') === 'true';
             $('#notificacionesSwitch').prop('checked', notificaciones);
             
@@ -93,17 +123,28 @@
         }
 
         function cerrarSesion() {
-            localStorage.clear();
-            mostrarToast('Sesión cerrada');
-            setTimeout(() => {
-                window.location.href = 'index.html';
-            }, 1000);
+            if(confirm('¿Estás seguro de que deseas cerrar sesión?')) {
+                // Limpiar localStorage
+                localStorage.removeItem('usuarioId');
+                localStorage.removeItem('usuarioNombre');
+                localStorage.removeItem('usuarioEmail');
+                localStorage.removeItem('usuarioToken');
+                localStorage.removeItem('basura_suscripcion_movil');
+                localStorage.removeItem('notificaciones');
+                localStorage.removeItem('darkMode');
+                
+                // Mostrar mensaje y redirigir
+                mostrarToast('Sesión cerrada');
+                setTimeout(() => {
+                    window.location.href = 'logout.php';
+                }, 1000);
+            }
         }
 
         function editarPerfil() {
             const nuevoNombre = prompt('Ingresa tu nombre:', localStorage.getItem('usuarioNombre') || '');
-            if(nuevoNombre) {
-                localStorage.setItem('usuarioNombre', nuevoNombre);
+            if(nuevoNombre && nuevoNombre.trim() !== '') {
+                localStorage.setItem('usuarioNombre', nuevoNombre.trim());
                 cargarPerfil();
                 mostrarToast('Perfil actualizado');
             }
@@ -135,7 +176,19 @@
             setTimeout(() => toast.remove(), 2000);
         }
 
-        $(document).ready(cargarPerfil);
+        $(document).ready(function() {
+            cargarPerfil();
+            
+            // Verificar si hay usuario logueado, si no, redirigir después de 3 segundos
+            const usuarioId = localStorage.getItem('usuarioId');
+            if(!usuarioId) {
+                setTimeout(() => {
+                    if(!localStorage.getItem('usuarioId')) {
+                        window.location.href = 'login.php';
+                    }
+                }, 3000);
+            }
+        });
     </script>
 </body>
 </html>

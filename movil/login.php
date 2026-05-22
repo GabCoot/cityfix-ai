@@ -5,36 +5,27 @@ require_once '../config/conexion.php';
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-
     $email = trim($_POST['email'] ?? '');
     $password = trim($_POST['password'] ?? '');
 
     if (!empty($email) && !empty($password)) {
-
-        // Buscar usuario
         $sql = "SELECT * FROM usuarios WHERE email = ?";
-
         $stmt = $pdo->prepare($sql);
         $stmt->execute([$email]);
-
         $usuario = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        // Validar usuario
         if ($usuario && $usuario['password'] == md5($password)) {
-
             $_SESSION['usuario_id'] = $usuario['id'];
             $_SESSION['usuario_nombre'] = $usuario['nombre'];
             $_SESSION['usuario_email'] = $usuario['email'];
             $_SESSION['usuario_rol'] = $usuario['rol'];
 
-            // Redirección al módulo móvil
-            header("Location: index.html");
+            // Redirigir al index con los datos en la URL para que JavaScript los capture
+            header("Location: index.html?id={$usuario['id']}&nombre=" . urlencode($usuario['nombre']) . "&email=" . urlencode($usuario['email']));
             exit;
-
         } else {
             $error = "Correo o contraseña incorrectos";
         }
-
     } else {
         $error = "Completa todos los campos";
     }
@@ -46,35 +37,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover">
-    <meta name="theme-color" content="#10b981">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>CityFix AI - Iniciar Sesión</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             background: #f0fdf4;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
             padding: 20px;
         }
-        
-        /* Logo y header */
-        .logo-container {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        
         .logo-icon {
             width: 80px;
             height: 80px;
@@ -86,24 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             margin: 0 auto 20px;
             box-shadow: 0 8px 20px rgba(16,185,129,0.3);
         }
-        
-        .logo-icon i {
-            font-size: 40px;
-            color: white;
-        }
-        
-        .logo-container h2 {
-            color: #1e293b;
-            font-weight: 700;
-            margin-bottom: 5px;
-        }
-        
-        .logo-container p {
-            color: #64748b;
-            font-size: 0.85rem;
-        }
-        
-        /* Tarjeta de login */
+        .logo-icon i { font-size: 40px; color: white; }
         .auth-card {
             background: white;
             border-radius: 32px;
@@ -112,26 +71,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             max-width: 400px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.08);
         }
-        
-        /* Campos de formulario */
         .form-control-custom {
             background: #f8fafc;
             border: 1px solid #e2e8f0;
             border-radius: 16px;
             padding: 14px 16px;
-            font-size: 1rem;
             width: 100%;
             margin-bottom: 16px;
-            transition: all 0.2s;
+            font-size: 1rem;
         }
-        
         .form-control-custom:focus {
             outline: none;
             border-color: #10b981;
             box-shadow: 0 0 0 3px rgba(16,185,129,0.1);
         }
-        
-        /* Botón */
         .btn-login {
             background: linear-gradient(135deg, #10b981, #059669);
             color: white;
@@ -139,36 +92,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             border-radius: 40px;
             padding: 14px;
             font-weight: 600;
-            font-size: 1rem;
             width: 100%;
-            transition: all 0.2s;
             cursor: pointer;
         }
-        
-        .btn-login:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(16,185,129,0.4);
-        }
-        
-        .btn-login:active {
-            transform: translateY(0);
-        }
-        
-        /* Enlace de registro */
         .register-link {
             text-align: center;
             margin-top: 20px;
             color: #64748b;
             font-size: 0.85rem;
         }
-        
-        .register-link a {
-            color: #10b981;
-            text-decoration: none;
-            font-weight: 600;
-        }
-        
-        /* Mensaje de error */
+        .register-link a { color: #10b981; text-decoration: none; font-weight: 600; }
         .error-msg {
             background: #fee2e2;
             color: #dc2626;
@@ -176,72 +109,58 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             border-radius: 16px;
             font-size: 0.8rem;
             margin-bottom: 20px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
         }
-        
-        .error-msg i {
-            font-size: 1rem;
-        }
-        
-        /* Input con icono */
-        .input-group-icon {
-            position: relative;
-        }
-        
+        .input-group-icon { position: relative; }
         .input-group-icon i {
             position: absolute;
             left: 16px;
             top: 50%;
             transform: translateY(-50%);
             color: #94a3b8;
-            font-size: 1rem;
         }
-        
-        .input-group-icon .form-control-custom {
-            padding-left: 45px;
-        }
+        .input-group-icon .form-control-custom { padding-left: 45px; }
     </style>
 </head>
 <body>
-
 <div class="auth-card">
-    <div class="logo-container">
-        <div class="logo-icon">
-            <i class="fas fa-city"></i>
-        </div>
-        <h2>CityFix AI</h2>
-        <p>Bienvenido de vuelta</p>
-    </div>
+    <div class="logo-icon"><i class="fas fa-city"></i></div>
+    <h2 class="text-center mb-2">CityFix AI</h2>
+    <p class="text-center text-muted mb-4">Bienvenido de vuelta</p>
 
     <?php if($error): ?>
-        <div class="error-msg">
-            <i class="fas fa-exclamation-circle"></i>
-            <?= htmlspecialchars($error) ?>
-        </div>
+        <div class="error-msg"><i class="fas fa-exclamation-circle"></i> <?= htmlspecialchars($error) ?></div>
     <?php endif; ?>
 
     <form method="POST">
         <div class="input-group-icon">
             <i class="fas fa-envelope"></i>
-            <input type="email" name="email" class="form-control-custom" placeholder="Correo electrónico" required autocomplete="email">
+            <input type="email" name="email" class="form-control-custom" placeholder="Correo electrónico" required>
         </div>
-        
         <div class="input-group-icon">
             <i class="fas fa-lock"></i>
-            <input type="password" name="password" class="form-control-custom" placeholder="Contraseña" required autocomplete="current-password">
+            <input type="password" name="password" class="form-control-custom" placeholder="Contraseña" required>
         </div>
-
-        <button type="submit" class="btn-login">
-            <i class="fas fa-arrow-right-to-bracket me-2"></i>Iniciar Sesión
-        </button>
+        <button type="submit" class="btn-login"><i class="fas fa-arrow-right-to-bracket me-2"></i>Iniciar Sesión</button>
     </form>
-
-    <div class="register-link">
-        ¿No tienes cuenta? <a href="register.php">Regístrate aquí</a>
-    </div>
+    <div class="register-link">¿No tienes cuenta? <a href="register.php">Regístrate aquí</a></div>
 </div>
 
+<script>
+    // Capturar los parámetros de la URL si vienen del login
+    const urlParams = new URLSearchParams(window.location.search);
+    const usuarioId = urlParams.get('id');
+    const usuarioNombre = urlParams.get('nombre');
+    const usuarioEmail = urlParams.get('email');
+    
+    if(usuarioId && usuarioNombre && usuarioEmail) {
+        // Guardar en localStorage
+        localStorage.setItem('usuarioId', usuarioId);
+        localStorage.setItem('usuarioNombre', decodeURIComponent(usuarioNombre));
+        localStorage.setItem('usuarioEmail', decodeURIComponent(usuarioEmail));
+        
+        // Redirigir al index sin parámetros
+        window.location.href = 'index.html';
+    }
+</script>
 </body>
 </html>
