@@ -24,7 +24,6 @@
     </style>
 </head>
 <body>
-    <!-- Bottom Navigation -->
     <div class="bottom-nav">
         <a href="index.html" class="nav-item"><i class="fas fa-home"></i><span>Inicio</span></a>
         <a href="reportar.html" class="nav-item"><i class="fas fa-plus-circle"></i><span>Reportar</span></a>
@@ -39,13 +38,12 @@
         </div>
 
         <div class="px-3 mt-3">
-            <!-- Tarjeta de perfil con nombre y email -->
             <div class="card-mobile text-center mb-3">
                 <div class="profile-avatar mx-auto mb-3">
                     <i class="fas fa-user-circle fa-4x text-primary"></i>
                 </div>
                 <h4 id="displayNombre" class="fw-bold">Cargando...</h4>
-                <p id="displayEmail" class="text-muted small">cargando...</p>
+                <p id="displayEmail" class="text-muted small">Cargando...</p>
                 <button class="btn btn-outline-danger btn-sm" onclick="cerrarSesion()">
                     <i class="fas fa-sign-out-alt"></i> Cerrar Sesión
                 </button>
@@ -95,22 +93,37 @@
     <script src="js/app.js"></script>
     <script>
         function cargarPerfil() {
-            // Obtener datos del localStorage
-            const nombre = localStorage.getItem('usuarioNombre');
-            const email = localStorage.getItem('usuarioEmail');
-            const usuarioId = localStorage.getItem('usuarioId');
+            // Primero intentar obtener de localStorage
+            let nombre = localStorage.getItem('usuarioNombre');
+            let email = localStorage.getItem('usuarioEmail');
             
-            console.log('Usuario ID:', usuarioId);
-            console.log('Nombre:', nombre);
-            console.log('Email:', email);
-            
-            // Mostrar datos o mensaje si no hay sesión
             if(nombre && email) {
                 $('#displayNombre').text(nombre);
                 $('#displayEmail').text(email);
             } else {
-                $('#displayNombre').html('<span class="text-danger">No has iniciado sesión</span>');
-                $('#displayEmail').html('<a href="login.php" class="text-primary">Iniciar sesión</a>');
+                // Si no hay datos en localStorage, obtener de la sesión PHP
+                $.ajax({
+                    url: '../api/get_session.php',
+                    type: 'GET',
+                    dataType: 'json',
+                    success: function(data) {
+                        if(data.success && data.usuario) {
+                            $('#displayNombre').text(data.usuario.nombre);
+                            $('#displayEmail').text(data.usuario.email);
+                            // Guardar en localStorage para futuras visitas
+                            localStorage.setItem('usuarioId', data.usuario.id);
+                            localStorage.setItem('usuarioNombre', data.usuario.nombre);
+                            localStorage.setItem('usuarioEmail', data.usuario.email);
+                        } else {
+                            $('#displayNombre').html('<span class="text-danger">No has iniciado sesión</span>');
+                            $('#displayEmail').html('<a href="login.php" class="text-primary">Iniciar sesión</a>');
+                        }
+                    },
+                    error: function() {
+                        $('#displayNombre').html('<span class="text-danger">Error de conexión</span>');
+                        $('#displayEmail').html('<a href="login.php" class="text-primary">Iniciar sesión</a>');
+                    }
+                });
             }
             
             // Cargar preferencias
@@ -124,7 +137,6 @@
 
         function cerrarSesion() {
             if(confirm('¿Estás seguro de que deseas cerrar sesión?')) {
-                // Limpiar localStorage
                 localStorage.removeItem('usuarioId');
                 localStorage.removeItem('usuarioNombre');
                 localStorage.removeItem('usuarioEmail');
@@ -133,29 +145,25 @@
                 localStorage.removeItem('notificaciones');
                 localStorage.removeItem('darkMode');
                 
-                // Mostrar mensaje y redirigir
-                mostrarToast('Sesión cerrada');
-                setTimeout(() => {
-                    window.location.href = 'logout.php';
-                }, 1000);
+                window.location.href = 'logout.php';
             }
         }
 
         function editarPerfil() {
-            const nuevoNombre = prompt('Ingresa tu nombre:', localStorage.getItem('usuarioNombre') || '');
-            if(nuevoNombre && nuevoNombre.trim() !== '') {
-                localStorage.setItem('usuarioNombre', nuevoNombre.trim());
+            const nuevoNombre = prompt('Ingresa tu nombre:', $('#displayNombre').text());
+            if(nuevoNombre && nuevoNombre !== 'Cargando...' && nuevoNombre !== 'No has iniciado sesión') {
+                localStorage.setItem('usuarioNombre', nuevoNombre);
                 cargarPerfil();
                 mostrarToast('Perfil actualizado');
             }
         }
 
         function cambiarPassword() {
-            alert('Funcionalidad en desarrollo. Por favor contacta al administrador.');
+            alert('Funcionalidad en desarrollo.');
         }
 
         function mostrarInfo() {
-            alert('CityFix AI\nVersión 1.0.0\n\nPlataforma para reportar problemas urbanos y mejorar tu ciudad.\n\nDesarrollado con ❤️ para la comunidad.');
+            alert('CityFix AI\nVersión 1.0.0\n\nPlataforma para reportar problemas urbanos y mejorar tu ciudad.');
         }
 
         function toggleNotificaciones(sw) {
@@ -176,19 +184,7 @@
             setTimeout(() => toast.remove(), 2000);
         }
 
-        $(document).ready(function() {
-            cargarPerfil();
-            
-            // Verificar si hay usuario logueado, si no, redirigir después de 3 segundos
-            const usuarioId = localStorage.getItem('usuarioId');
-            if(!usuarioId) {
-                setTimeout(() => {
-                    if(!localStorage.getItem('usuarioId')) {
-                        window.location.href = 'login.php';
-                    }
-                }, 3000);
-            }
-        });
+        $(document).ready(cargarPerfil);
     </script>
 </body>
 </html>

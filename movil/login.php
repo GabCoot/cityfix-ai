@@ -20,7 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $_SESSION['usuario_email'] = $usuario['email'];
             $_SESSION['usuario_rol'] = $usuario['rol'];
 
-            // Redirigir al index con los datos en la URL para que JavaScript los capture
+            // Redirigir al index con parámetros para guardar en localStorage
             header("Location: index.html?id={$usuario['id']}&nombre=" . urlencode($usuario['nombre']) . "&email=" . urlencode($usuario['email']));
             exit;
         } else {
