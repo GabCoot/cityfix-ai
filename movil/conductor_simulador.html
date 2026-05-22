@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <meta name="theme-color" content="#10b981">
+    <title>CityFix AI - Simulador de Ruta (Conductor)</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #f0fdf4; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding-bottom: 20px; }
+        .header { background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 20px; text-align: center; }
+        .card { background: white; border-radius: 20px; padding: 20px; margin: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .btn-start { background: #10b981; color: white; border: none; border-radius: 40px; padding: 14px; width: 100%; font-weight: bold; font-size: 1.1rem; }
+        .btn-stop { background: #ef4444; color: white; border: none; border-radius: 40px; padding: 14px; width: 100%; font-weight: bold; font-size: 1.1rem; }
+        .btn-pause { background: #f59e0b; color: white; border: none; border-radius: 40px; padding: 14px; width: 100%; font-weight: bold; font-size: 1.1rem; }
+        .estado-activo { color: #10b981; font-weight: bold; }
+        .estado-inactivo { color: #ef4444; font-weight: bold; }
+        .estado-pausado { color: #f59e0b; font-weight: bold; }
+        .coordenadas { font-family: monospace; font-size: 12px; background: #f1f5f9; padding: 10px; border-radius: 10px; text-align: center; margin: 10px 0; }
+        .progreso { background: #e2e8f0; border-radius: 20px; height: 20px; margin: 10px 0; overflow: hidden; }
+        .progreso-bar { background: #10b981; height: 100%; width: 0%; transition: width 0.3s ease; border-radius: 20px; }
+        .info-punto { text-align: center; font-size: 0.85rem; color: #64748b; margin-top: 10px; }
+        #map { height: 400px; border-radius: 16px; margin-top: 10px; }
+        .velocidad-control { display: flex; align-items: center; justify-content: space-between; margin: 15px 0; gap: 10px; }
+        .velocidad-control input { flex: 1; padding: 10px; border-radius: 30px; border: 1px solid #e2e8f0; }
+        .ruta-select { width: 100%; padding: 12px; border-radius: 30px; border: 1px solid #e2e8f0; margin-bottom: 15px; font-size: 1rem; }
+        .badge-punto { display: inline-block; width: 24px; height: 24px; background: #10b981; color: white; border-radius: 50%; text-align: center; line-height: 24px; font-size: 12px; font-weight: bold; margin-right: 8px; }
+        .punto-activo { background: #f59e0b !important; }
+        .camion-marker { animation: bounce 0.5s ease infinite; }
+        @keyframes bounce { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+        .loading { text-align: center; padding: 20px; color: #64748b; }
+        .info-ruta-card { background: #f0fdf4; border-radius: 12px; padding: 10px; margin-bottom: 10px; border-left: 4px solid; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1><i class="fas fa-truck"></i> Simulador de Ruta</h1>
+        <p>Simula el recorrido del camión de basura (Rutas reales desde localStorage)</p>
+    </div>
+
+    <div class="card">
+        <div class="text-center mb-3">
+            <i class="fas fa-map-marked-alt fa-3x text-success"></i>
+        </div>
+        
+        <select id="rutaSelect" class="ruta-select">
+            <option value="">Selecciona una ruta...</option>
+        </select>
+        
+        <div id="infoRutaSeleccionada" class="small text-muted text-center mb-2" style="display: none;">
+            <div id="infoRutaNombre" class="fw-bold text-success"></div>
+            <span id="infoRutaPuntos"></span> | 
+            <span id="infoRutaHorario"></span>
+        </div>
+        
+        <div class="velocidad-control">
+            <i class="fas fa-tachometer-alt"></i>
+            <input type="range" id="velocidadSlider" min="0.5" max="5" step="0.5" value="2">
+            <span id="velocidadLabel">2x</span>
+        </div>
+        
+        <div id="estado" class="text-center mb-2">
+            <span class="estado-inactivo"><i class="fas fa-circle"></i> Simulación detenida</span>
+        </div>
+        
+        <div class="progreso">
+            <div class="progreso-bar" id="progresoBar"></div>
+        </div>
+        
+        <div class="info-punto" id="infoPuntoActual">
+            Punto: -- / --
+        </div>
+        
+        <div class="coordenadas" id="coordenadas">
+            📍 Selecciona una ruta para comenzar
+        </div>
+        
+        <div class="row g-2 mt-2">
+            <div class="col-6">
+                <button id="btnIniciar" class="btn-start" onclick="iniciarSimulacion()">
+                    <i class="fas fa-play"></i> Iniciar
+                </button>
+            </div>
+            <div class="col-6">
+                <button id="btnPausar" class="btn-pause" onclick="pausarSimulacion()" style="display: none;">
+                    <i class="fas fa-pause"></i> Pausar
+                </button>
+                <button id="btnReanudar" class="btn-start" onclick="reanudarSimulacion()" style="display: none;">
+                    <i class="fas fa-play"></i> Reanudar
+                </button>
+            </div>
+        </div>
+        
+        <div class="mt-2">
+            <button id="btnDetener" class="btn-stop" onclick="detenerSimulacion()" style="display: none;">
+                <i class="fas fa-stop"></i> Detener
+            </button>
+        </div>
+    </div>
+    
+    <div class="card">
+        <h5><i class="fas fa-map"></i> Mapa de la Ruta</h5>
+        <div id="map"></div>
+    </div>
+    
+    <div class="card">
+        <h5><i class="fas fa-list-ol"></i> Puntos de la Ruta</h5>
+        <div id="listaPuntos" class="small">
+            <div class="loading"><i class="fas fa-spinner fa-spin"></i> Selecciona una ruta</div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+
+    <script>
+    // ============================================
+    // VARIABLES GLOBALES
+    // ============================================
+    let map;
+    let rutasData = [];
+    let puntosRuta = [];
+    let rutaSeleccionada = null;
+    let puntoActual = 0;
+    let intervaloSimulacion = null;
+    let camionMarker = null;
+    let rutaLinea = null;
+    let markersPuntos = [];
+    let routingControl = null;
+    let simulacionActiva = false;
+    let simulacionPausada = false;
+    let velocidadBase = 2000;
+    let animationFrameId = null;
+    
+    const OXKUTZCAB = { lat: 20.3051, lng: -89.4179 };
+    
+    // ============================================
+    // INICIALIZAR MAPA
+    // ============================================
+    function initMap() {
+        map = L.map('map').setView([OXKUTZCAB.lat, OXKUTZCAB.lng], 14);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+            attribution: '© CityFix - Simulador',
+            subdomains: 'abcd',
+            maxZoom: 19
+        }).addTo(map);
+        
+        cargarRutasDesdeLocalStorage();
+    }
+    
+    // ============================================
+    // CARGAR RUTAS DESDE LOCALSTORAGE
+    // ============================================
+    function cargarRutasDesdeLocalStorage() {
+        let todasLasRutas = [];
+        const keys = ['basura_rutas_final', 'basura_rutas_pro', 'basura_rutas_v2', 'basura_rutas'];
+        
+        for(let k of keys) {
+            let data = localStorage.getItem(k);
+            if(data && data !== '[]' && data !== 'null') {
+                try {
+                    let rutas = JSON.parse(data);
+                    if(rutas && rutas.length > 0) {
+                        todasLasRutas = todasLasRutas.concat(rutas);
+                    }
+                } catch(e) {}
+            }
+        }
+        
+        // Eliminar duplicados
+        const rutasUnicas = [];
+        const idsExistentes = new Set();
+        
+        for(let ruta of todasLasRutas) {
+            if(!idsExistentes.has(ruta.id)) {
+                idsExistentes.add(ruta.id);
+                if(ruta.colonias && !ruta.puntos) {
+                    ruta.puntos = ruta.colonias;
+                    delete ruta.colonias;
+                }
+                if(!ruta.puntos) ruta.puntos = [];
+                rutasUnicas.push(ruta);
+            }
+        }
+        
+        if(rutasUnicas.length > 0) {
+            rutasData = rutasUnicas.filter(r => r.activo !== false);
+            mostrarToast(`✅ ${rutasData.length} rutas cargadas desde el dashboard`);
+        } else {
+            // Datos de ejemplo si no hay nada
+            rutasData = [
+                {
+                    id: 1,
+                    nombre: 'Ruta Centro',
+                    descripcion: 'Centro de Oxkutzcab',
+                    dias: ['lunes', 'miercoles', 'viernes'],
+                    hora_inicio: '07:00',
+                    hora_fin: '09:00',
+                    color: '#ef4444',
+                    activo: true,
+                    puntos: [
+                        { id: 1, nombre: 'Parque Principal', orden: 1, lat: 20.3051, lng: -89.4179 },
+                        { id: 2, nombre: 'Calle 20', orden: 2, lat: 20.3055, lng: -89.4185 },
+                        { id: 3, nombre: 'Calle 22', orden: 3, lat: 20.3065, lng: -89.4175 }
+                    ]
+                },
+                {
+                    id: 2,
+                    nombre: 'Ruta Norte',
+                    descripcion: 'Colonias del norte',
+                    dias: ['martes', 'jueves', 'sabado'],
+                    hora_inicio: '08:00',
+                    hora_fin: '10:30',
+                    color: '#10b981',
+                    activo: true,
+                    puntos: [
+                        { id: 4, nombre: 'Calle 25', orden: 1, lat: 20.3080, lng: -89.4160 },
+                        { id: 5, nombre: 'Calle 27', orden: 2, lat: 20.3090, lng: -89.4150 }
+                    ]
+                }
+            ];
+        }
+        
+        llenarSelectRutas();
+    }
+    
+    function llenarSelectRutas() {
+        const select = $('#rutaSelect');
+        select.empty();
+        select.append('<option value="">Selecciona una ruta...</option>');
+        
+        rutasData.forEach(ruta => {
+            const puntosCount = ruta.puntos ? ruta.puntos.length : 0;
+            select.append(`<option value="${ruta.id}" data-color="${ruta.color}">${ruta.nombre} (${puntosCount} pts)</option>`);
+        });
+        
+        // Cargar ruta previamente seleccionada
+        const rutaGuardada = localStorage.getItem('simulador_ruta_id');
+        if(rutaGuardada) {
+            select.val(rutaGuardada);
+            cargarRutaSeleccionada();
+        }
+    }
+    
+    function cargarRutaSeleccionada() {
+        const id = parseInt($('#rutaSelect').val());
+        if(!id) return;
+        
+        rutaSeleccionada = rutasData.find(r => r.id === id);
+        if(!rutaSeleccionada) return;
+        
+        puntosRuta = rutaSeleccionada.puntos ? [...rutaSeleccionada.puntos] : [];
+        puntosRuta.sort((a,b) => (a.orden || 0) - (b.orden || 0));
+        
+        // Mostrar info
+        $('#infoRutaSeleccionada').show();
+        $('#infoRutaNombre').html(rutaSeleccionada.nombre);
+        $('#infoRutaPuntos').html(`${puntosRuta.length} puntos de recolección`);
+        $('#infoRutaHorario').html(`${rutaSeleccionada.hora_inicio || '--:--'} - ${rutaSeleccionada.hora_fin || '--:--'}`);
+        
+        // Mostrar lista de puntos
+        mostrarListaPuntos();
+        
+        // Dibujar en el mapa
+        dibujarRutaEnMapa();
+        
+        // Guardar selección
+        localStorage.setItem('simulador_ruta_id', id);
+        
+        mostrarToast(`✅ Ruta "${rutaSeleccionada.nombre}" cargada con ${puntosRuta.length} puntos`);
+    }
+    
+    function mostrarListaPuntos() {
+        const container = $('#listaPuntos');
+        container.empty();
+        
+        if(puntosRuta.length === 0) {
+            container.html('<div class="text-muted text-center">No hay puntos en esta ruta</div>');
+            return;
+        }
+        
+        let html = '<div style="max-height: 250px; overflow-y: auto;">';
+        puntosRuta.forEach((punto, idx) => {
+            const isActive = (idx === puntoActual && simulacionActiva);
+            html += `
+                <div class="d-flex align-items-center mb-2 p-2 ${isActive ? 'bg-success bg-opacity-10 rounded' : ''}" style="border-bottom: 1px solid #e2e8f0;">
+                    <span class="badge-punto ${isActive ? 'punto-activo' : ''}">${idx + 1}</span>
+                    <div class="flex-grow-1">
+                        <strong>${escapeHtml(punto.nombre)}</strong>
+                        <div class="small text-muted">${punto.lat.toFixed(5)}, ${punto.lng.toFixed(5)}</div>
+                    </div>
+                    ${isActive ? '<i class="fas fa-truck text-success fa-fw"></i>' : ''}
+                </div>
+            `;
+        });
+        html += '</div>';
+        container.html(html);
+    }
+    
+    // ============================================
+    // DIBUJAR RUTA EN MAPA (como en el dashboard)
+    // ============================================
+    function dibujarRutaEnMapa() {
+        // Limpiar capas anteriores
+        if(routingControl) map.removeControl(routingControl);
+        if(rutaLinea) map.removeLayer(rutaLinea);
+        markersPuntos.forEach(m => map.removeLayer(m));
+        markersPuntos = [];
+        
+        if(puntosRuta.length === 0) return;
+        
+        // Dibujar puntos con números
+        puntosRuta.forEach((punto, idx) => {
+            if(punto.lat && punto.lng) {
+                const marker = L.marker([punto.lat, punto.lng], {
+                    icon: L.divIcon({
+                        html: `<div style="background-color: ${rutaSeleccionada.color}; width: 16px; height: 16px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 4px rgba(0,0,0,0.3); position: relative;">
+                                   <span style="position: absolute; top: -18px; left: 2px; font-size: 11px; font-weight: bold; background: white; padding: 2px 6px; border-radius: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.2);">${idx+1}</span>
+                               </div>`,
+                        iconSize: [22, 22]
+                    })
+                }).bindPopup(`<b>${escapeHtml(punto.nombre)}</b><br>Punto ${idx+1}`);
+                marker.addTo(map);
+                markersPuntos.push(marker);
+            }
+        });
+        
+        // Dibujar línea de ruta
+        const puntosValidos = puntosRuta.filter(p => p.lat && p.lng).map(p => [p.lat, p.lng]);
+        if(puntosValidos.length >= 2) {
+            // Usar polyline simple para la ruta (más rápido)
+            rutaLinea = L.polyline(puntosValidos, {
+                color: rutaSeleccionada.color,
+                weight: 4,
+                opacity: 0.7,
+                dashArray: '5, 10'
+            }).addTo(map);
+            map.fitBounds(rutaLinea.getBounds(), { padding: [40, 40] });
+        } else if(puntosValidos.length === 1) {
+            map.setView(puntosValidos[0], 15);
+        }
+    }
+    
+    // ============================================
+    // SIMULACIÓN CON ANIMACIÓN FLUIDA
+    // ============================================
+    function actualizarVelocidad() {
+        const velocidadVal = parseFloat($('#velocidadSlider').val());
+        $('#velocidadLabel').text(velocidadVal + 'x');
+        velocidadBase = 2000 / velocidadVal;
+    }
+    
+    function crearMarcadorCamion() {
+        if(camionMarker) map.removeLayer(camionMarker);
+        
+        const primerPunto = puntosRuta[0];
+        if(!primerPunto) return;
+        
+        const camionIcon = L.divIcon({
+            html: `<div style="background-color: ${rutaSeleccionada.color}; width: 36px; height: 36px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 12px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center;">
+                       <i class="fas fa-truck" style="color: white; font-size: 18px;"></i>
+                   </div>`,
+            iconSize: [42, 42],
+            className: 'camion-marker'
+        });
+        
+        camionMarker = L.marker([primerPunto.lat, primerPunto.lng], { icon: camionIcon })
+            .addTo(map)
+            .bindPopup(`🚛 Inicio del recorrido - ${rutaSeleccionada.nombre}`)
+            .openPopup();
+    }
+    
+    function animarMovimientoEntrePuntos(puntoInicio, puntoFin, duracion) {
+        return new Promise((resolve) => {
+            const startLat = puntoInicio.lat;
+            const startLng = puntoInicio.lng;
+            const endLat = puntoFin.lat;
+            const endLng = puntoFin.lng;
+            const startTime = performance.now();
+            
+            function step(currentTime) {
+                const elapsed = currentTime - startTime;
+                const progress = Math.min(elapsed / duracion, 1);
+                
+                const currentLat = startLat + (endLat - startLat) * progress;
+                const currentLng = startLng + (endLng - startLng) * progress;
+                
+                if(camionMarker) {
+                    camionMarker.setLatLng([currentLat, currentLng]);
+                }
+                
+                if(progress < 1) {
+                    animationFrameId = requestAnimationFrame(step);
+                } else {
+                    resolve();
+                }
+            }
+            
+            animationFrameId = requestAnimationFrame(step);
+        });
+    }
+    
+    async function iniciarRecorrido() {
+        if(!simulacionActiva || simulacionPausada) return;
+        
+        for(let i = puntoActual; i < puntosRuta.length; i++) {
+            if(!simulacionActiva || simulacionPausada) break;
+            
+            puntoActual = i;
+            const punto = puntosRuta[i];
+            
+            // Actualizar UI
+            $('#coordenadas').html(`📍 ${punto.nombre}<br>Lat: ${punto.lat.toFixed(6)}, Lng: ${punto.lng.toFixed(6)}`);
+            $('#infoPuntoActual').html(`Punto: ${i + 1} / ${puntosRuta.length}`);
+            
+            const progreso = (i / (puntosRuta.length - 1)) * 100;
+            $('#progresoBar').css('width', progreso + '%');
+            
+            mostrarListaPuntos();
+            
+            if(camionMarker) {
+                camionMarker.setPopupContent(`🚛 Llegando a: ${punto.nombre}<br>Punto ${i+1} de ${puntosRuta.length}`);
+                camionMarker.openPopup();
+            }
+            
+            map.setView([punto.lat, punto.lng], 17);
+            
+            // Guardar posición para que los usuarios la vean
+            localStorage.setItem('simulador_ultima_posicion', JSON.stringify({
+                lat: punto.lat,
+                lng: punto.lng,
+                punto: i + 1,
+                nombre: punto.nombre,
+                ruta: rutaSeleccionada.nombre,
+                timestamp: new Date().toISOString()
+            }));
+            
+            if(i < puntosRuta.length - 1) {
+                const siguientePunto = puntosRuta[i + 1];
+                await animarMovimientoEntrePuntos(punto, siguientePunto, velocidadBase);
+            }
+        }
+        
+        if(simulacionActiva && !simulacionPausada) {
+            completarSimulacion();
+        }
+    }
+    
+    function iniciarSimulacion() {
+        const rutaId = parseInt($('#rutaSelect').val());
+        if(!rutaId) {
+            alert('Selecciona una ruta primero');
+            return;
+        }
+        
+        if(!rutaSeleccionada || rutaSeleccionada.id !== rutaId) {
+            cargarRutaSeleccionada();
+            setTimeout(() => {
+                if(puntosRuta.length > 0) {
+                    iniciarSimulacionInterna();
+                } else {
+                    alert('Esta ruta no tiene puntos para simular');
+                }
+            }, 500);
+        } else {
+            iniciarSimulacionInterna();
+        }
+    }
+    
+    function iniciarSimulacionInterna() {
+        if(puntosRuta.length === 0) {
+            alert('Esta ruta no tiene puntos para simular');
+            return;
+        }
+        
+        detenerSimulacion();
+        
+        puntoActual = 0;
+        simulacionActiva = true;
+        simulacionPausada = false;
+        
+        crearMarcadorCamion();
+        iniciarRecorrido();
+        
+        $('#btnIniciar').hide();
+        $('#btnPausar').show();
+        $('#btnDetener').show();
+        $('#estado').html('<span class="estado-activo"><i class="fas fa-circle"></i> Simulación en curso...</span>');
+        
+        localStorage.setItem('simulador_activo', 'true');
+        localStorage.setItem('simulador_ruta_id', $('#rutaSelect').val());
+        
+        mostrarToast('🚛 Simulación iniciada');
+    }
+    
+    function pausarSimulacion() {
+        if(!simulacionActiva || simulacionPausada) return;
+        
+        simulacionPausada = true;
+        if(animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+        }
+        
+        $('#btnPausar').hide();
+        $('#btnReanudar').show();
+        $('#estado').html('<span class="estado-pausado"><i class="fas fa-pause-circle"></i> Simulación pausada</span>');
+        
+        mostrarToast('⏸️ Simulación pausada');
+    }
+    
+    function reanudarSimulacion() {
+        if(!simulacionActiva || !simulacionPausada) return;
+        
+        simulacionPausada = false;
+        $('#btnPausar').show();
+        $('#btnReanudar').hide();
+        $('#estado').html('<span class="estado-activo"><i class="fas fa-play-circle"></i> Simulación en curso...</span>');
+        
+        iniciarRecorrido();
+        
+        mostrarToast('▶️ Simulación reanudada');
+    }
+    
+    function detenerSimulacion() {
+        simulacionActiva = false;
+        simulacionPausada = false;
+        
+        if(animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+        }
+        
+        if(camionMarker) {
+            map.removeLayer(camionMarker);
+            camionMarker = null;
+        }
+        
+        puntoActual = 0;
+        $('#progresoBar').css('width', '0%');
+        $('#coordenadas').html('📍 Simulación detenida');
+        $('#infoPuntoActual').html('Punto: -- / --');
+        
+        $('#btnIniciar').show();
+        $('#btnPausar').hide();
+        $('#btnReanudar').hide();
+        $('#btnDetener').hide();
+        $('#estado').html('<span class="estado-inactivo"><i class="fas fa-circle"></i> Simulación detenida</span>');
+        
+        mostrarListaPuntos();
+        mostrarToast('🛑 Simulación detenida');
+        
+        localStorage.removeItem('simulador_activo');
+        localStorage.removeItem('simulador_ultima_posicion');
+    }
+    
+    function completarSimulacion() {
+        simulacionActiva = false;
+        simulacionPausada = false;
+        
+        $('#estado').html('<span class="estado-activo"><i class="fas fa-check-circle"></i> Simulación completada</span>');
+        $('#btnIniciar').show();
+        $('#btnPausar').hide();
+        $('#btnReanudar').hide();
+        $('#btnDetener').hide();
+        $('#progresoBar').css('width', '100%');
+        
+        if(camionMarker) {
+            camionMarker.setPopupContent('✅ Recorrido completado');
+        }
+        
+        mostrarToast('✅ Simulación completada');
+        localStorage.removeItem('simulador_activo');
+    }
+    
+    // ============================================
+    // EVENTOS Y UTILIDADES
+    // ============================================
+    $('#rutaSelect').on('change', function() {
+        const rutaId = parseInt($(this).val());
+        if(rutaId) {
+            detenerSimulacion();
+            cargarRutaSeleccionada();
+        } else {
+            $('#infoRutaSeleccionada').hide();
+            $('#listaPuntos').html('<div class="loading"><i class="fas fa-spinner fa-spin"></i> Selecciona una ruta</div>');
+        }
+    });
+    
+    $('#velocidadSlider').on('input', function() {
+        actualizarVelocidad();
+    });
+    
+    function mostrarToast(mensaje) {
+        const toast = $(`<div style="position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); background: #1e293b; color: white; padding: 10px 20px; border-radius: 40px; font-size: 0.85rem; z-index: 9999; white-space: nowrap; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">${mensaje}</div>`);
+        $('body').append(toast);
+        setTimeout(() => toast.remove(), 2500);
+    }
+    
+    function escapeHtml(text) {
+        if(!text) return '';
+        return $('<div>').text(text).html();
+    }
+    
+    // Verificar simulación activa al cargar
+    function verificarSimulacionActiva() {
+        const activa = localStorage.getItem('simulador_activo');
+        if(activa === 'true') {
+            const rutaId = localStorage.getItem('simulador_ruta_id');
+            if(rutaId) {
+                $('#rutaSelect').val(rutaId);
+                cargarRutaSeleccionada();
+                setTimeout(() => {
+                    if(puntosRuta.length > 0) {
+                        iniciarSimulacionInterna();
+                    }
+                }, 1000);
+            }
+        }
+    }
+    
+    // Inicializar
+    $(document).ready(function() {
+        initMap();
+        actualizarVelocidad();
+        verificarSimulacionActiva();
+    });
+    </script>
+</body>
+</html>
